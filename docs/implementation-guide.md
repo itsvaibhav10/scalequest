@@ -19,14 +19,14 @@ Peak RPS = 0.01157 × 10 = 0.11574
 
 User count alone cannot tell you whether Redis or more servers are needed. The first useful action is to translate product activity into demand. Every chapter after that starts with something that breaks, and the learner earns the fix.
 
-| Chapter | Daily users | Lookups per user per day | Peak RPS | Budget | The failure | The fix |
-| --- | ---: | ---: | ---: | ---: | --- | --- |
-| 1 | 10 | 100 | 0.12 | $150 | None; the simplest path is right | Client → API → local data |
-| 2 | 100 | 100 | 1.16 | $150 | A restart erases products | A relational database |
-| 3 | 1K | 500 | 57.9 | $250 | An unindexed database is rated about 40 RPS and fails with 30.9% errors | Turn on the index |
-| 4 | 10K | 500 | 578.7 | $400 | One API server is rated 500 RPS (13.6% errors), and losing it is a total outage | A load balancer and 3 API instances (survives losing one) |
-| 5 | 100K | 500 | 5,787 | $1,000 | Scaling the API only moves the bottleneck: 82.7% errors at the database | A cache ($635), or 5 replicas ($985) |
-| 6 | 1M | 100 | 11,574 | $1,500 | A bot spike and a server failure | A rate limiter, 24 API instances, cache and 2 replicas ($1,295) |
+| Chapter | Daily users | Lookups per user per day | Peak RPS | Budget | The failure                                                                     | The fix                                                         |
+| ------- | ----------: | -----------------------: | -------: | -----: | ------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 1       |          10 |                      100 |     0.12 |   $150 | None; the simplest path is right                                                | Client → API → local data                                       |
+| 2       |         100 |                      100 |     1.16 |   $150 | A restart erases products                                                       | A relational database                                           |
+| 3       |          1K |                      500 |     57.9 |   $250 | An unindexed database is rated about 40 RPS and fails with 30.9% errors         | Turn on the index                                               |
+| 4       |         10K |                      500 |    578.7 |   $400 | One API server is rated 500 RPS (13.6% errors), and losing it is a total outage | A load balancer and 3 API instances (survives losing one)       |
+| 5       |        100K |                      500 |    5,787 | $1,000 | Scaling the API only moves the bottleneck: 82.7% errors at the database         | A cache ($635), or 5 replicas ($985)                            |
+| 6       |          1M |                      100 |   11,574 | $1,500 | A bot spike and a server failure                                                | A rate limiter, 24 API instances, cache and 2 replicas ($1,295) |
 
 Chapters 3 to 6 override the learner's workload with authored assumptions when they start. Each brief says so. The learner can still change daily users, lookups and the peak multiplier in the traffic console.
 
@@ -40,20 +40,20 @@ This is the Golden Circle in practice, using chapter 2 as the example:
 
 ## What each UI region does
 
-| Region | Implementation | Purpose |
-| --- | --- | --- |
-| Level map | app/App.tsx | One isometric tile per chapter; done, active and locked states |
-| Brief | campaign/CampaignIntro.tsx | Collects assumptions and checks the learner's RPS estimate |
-| Toy box (palette) | canvas/ComponentPalette.tsx | Adds stage-allowed blocks; shows when locked blocks unlock |
-| Board | canvas/ArchitectureCanvas.tsx | Moves and removes blocks, connects and deletes roads, offers a keyboard list editor |
-| Blocks | canvas/SystemNode.tsx, canvas/IsoBlock.tsx | One drawn silhouette per component, instance stepper, index toggle, load pill |
-| Roads and packets | canvas/PacketEdge.tsx | Dotted edges; packets move after a run and slow down when the target is overloaded |
-| Layout | canvas/layout.ts | Re-flows blocks into request-layer columns whenever one is added |
-| Interview guide | interview/InterviewerPanel.tsx | Presents the stage's diagnosis and trade-off questions |
-| Why panel | learning/GoldenCirclePanel.tsx | Explains internal behavior, schema, pseudocode and limitations |
-| Traffic and results | metrics/ | Runs simulations, one button per incident, and exposes the calculation trace |
-| Comparison | comparison/ComparisonDrawer.tsx | Same workload for baseline, current and reference, with a scenario picker |
-| Completion | campaign/GameWorkspace.tsx | Interview summary after the last chapter |
+| Region              | Implementation                             | Purpose                                                                             |
+| ------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| Level map           | app/App.tsx                                | One isometric tile per chapter; done, active and locked states                      |
+| Brief               | campaign/CampaignIntro.tsx                 | Collects assumptions and checks the learner's RPS estimate                          |
+| Toy box (palette)   | canvas/ComponentPalette.tsx                | Adds stage-allowed blocks; shows when locked blocks unlock                          |
+| Board               | canvas/ArchitectureCanvas.tsx              | Moves and removes blocks, connects and deletes roads, offers a keyboard list editor |
+| Blocks              | canvas/SystemNode.tsx, canvas/IsoBlock.tsx | One drawn silhouette per component, instance stepper, index toggle, load pill       |
+| Roads and packets   | canvas/PacketEdge.tsx                      | Dotted edges; packets move after a run and slow down when the target is overloaded  |
+| Layout              | canvas/layout.ts                           | Re-flows blocks into request-layer columns whenever one is added                    |
+| Interview guide     | interview/InterviewerPanel.tsx             | Presents the stage's diagnosis and trade-off questions                              |
+| Why panel           | learning/GoldenCirclePanel.tsx             | Explains internal behavior, schema, pseudocode and limitations                      |
+| Traffic and results | metrics/                                   | Runs simulations, one button per incident, and exposes the calculation trace        |
+| Comparison          | comparison/ComparisonDrawer.tsx            | Same workload for baseline, current and reference, with a scenario picker           |
+| Completion          | campaign/GameWorkspace.tsx                 | Interview summary after the last chapter                                            |
 
 Stage content (mission copy, questions, incidents, unlocks, objectives, baseline and reference designs) is data in `content/readApiCampaign.ts`. The reducer, scoring, palette, console and persistence read it; none of them hard-code a chapter.
 
@@ -87,16 +87,16 @@ Objectives are evaluated against the latest run of each scenario (`runs`), not o
 
 Each kind has a role: source, gate (rate limiter), distributor (load balancer), compute (API), cache, or data. Definitions in `content/components.ts` supply capacity per instance, illustrative latency, cost, complexity and allowed connections. API servers and read replicas are scalable: a node carries an instance count that multiplies capacity, cost and complexity. A database has an `indexed` option; a missing value means indexed, so older saves keep their behavior.
 
-| Component | Capacity per instance | Latency | Cost per instance |
-| --- | ---: | ---: | ---: |
-| Rate limiter | 50,000 RPS | 1 ms | $20 |
-| Load balancer | 20,000 RPS | 2 ms | $25 |
-| API server | 500 RPS | 30 ms | $40 |
-| Cache | 20,000 RPS (85% hit ratio) | 1 ms | $50 |
-| Local data | 500 RPS | 2 ms | $0 |
-| Relational database, indexed | 1,000 RPS | 12 ms | $80 |
-| Relational database, unindexed | 40 RPS | 150 ms | $80 |
-| Read replica | 1,000 RPS | 12 ms | $80 |
+| Component                      |      Capacity per instance | Latency | Cost per instance |
+| ------------------------------ | -------------------------: | ------: | ----------------: |
+| Rate limiter                   |                 50,000 RPS |    1 ms |               $20 |
+| Load balancer                  |                 20,000 RPS |    2 ms |               $25 |
+| API server                     |                    500 RPS |   30 ms |               $40 |
+| Cache                          | 20,000 RPS (85% hit ratio) |    1 ms |               $50 |
+| Local data                     |                    500 RPS |    2 ms |                $0 |
+| Relational database, indexed   |                  1,000 RPS |   12 ms |               $80 |
+| Relational database, unindexed |                     40 RPS |  150 ms |               $80 |
+| Read replica                   |                  1,000 RPS |   12 ms |               $80 |
 
 ### Validation
 
@@ -139,14 +139,14 @@ This does not model outage duration, replica failover, database failure, load ba
 
 ## Scoring
 
-| Evidence | Maximum |
-| --- | ---: |
-| Confirmed requirements | 20 |
-| Initial peak-RPS estimate | 15 |
-| Correct diagnosis choice | 20 |
-| Valid architecture meeting objectives | 20 |
-| Correct trade-off choice | 15 |
-| Within budget, with no more blocks than the reference | 10 |
+| Evidence                                              | Maximum |
+| ----------------------------------------------------- | ------: |
+| Confirmed requirements                                |      20 |
+| Initial peak-RPS estimate                             |      15 |
+| Correct diagnosis choice                              |      20 |
+| Valid architecture meeting objectives                 |      20 |
+| Correct trade-off choice                              |      15 |
+| Within budget, with no more blocks than the reference |      10 |
 
 The initial estimate is captured as evidence when leaving the brief. Later traffic experiments do not erase that learning achievement. Every score category exposes its rule. Wrong choices can be revised without a retry penalty.
 

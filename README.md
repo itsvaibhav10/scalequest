@@ -4,15 +4,15 @@ Learn system design by building a request path, changing its workload, observing
 
 ScaleQuest is a browser-based interview learning game for working developers. The campaign is one read API taken from 10 users to 1 million. Each chapter starts with something that breaks, and you earn the fix.
 
-| Chapter | Daily users | What breaks | What you learn |
-| --- | --- | --- | --- |
-| Brief | 10 | Nothing yet | Estimating peak requests per second |
-| 1 | 10 | Nothing | The simplest path, and what local data gives up |
-| 2 | 100 | A restart erases products | A database for durability |
-| 3 | 1K | The database fails far below its rating | An index on the lookup column |
-| 4 | 10K | One API server is both too small and a single point of failure | A load balancer and N+1 sizing |
-| 5 | 100K | Every read still reaches one database | A cache, or read replicas, and what each costs |
-| 6 | 1M | A bot spike and a server failure | A rate limiter and redundancy |
+| Chapter | Daily users | What breaks                                                    | What you learn                                  |
+| ------- | ----------- | -------------------------------------------------------------- | ----------------------------------------------- |
+| Brief   | 10          | Nothing yet                                                    | Estimating peak requests per second             |
+| 1       | 10          | Nothing                                                        | The simplest path, and what local data gives up |
+| 2       | 100         | A restart erases products                                      | A database for durability                       |
+| 3       | 1K          | The database fails far below its rating                        | An index on the lookup column                   |
+| 4       | 10K         | One API server is both too small and a single point of failure | A load balancer and N+1 sizing                  |
+| 5       | 100K        | Every read still reaches one database                          | A cache, or read replicas, and what each costs  |
+| 6       | 1M          | A bot spike and a server failure                               | A rate limiter and redundancy                   |
 
 ## Run locally
 

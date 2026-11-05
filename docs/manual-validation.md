@@ -4,14 +4,14 @@ Scope: graph simulator, chapters 3 to 6 and the isometric toybox redesign. No te
 
 ## Commands
 
-| Check | Observed result |
-| --- | --- |
-| npm run typecheck | Passed |
-| npm run lint | Passed |
-| npm run build | Passed; about 145.6 KB JavaScript gzip and 7.95 KB CSS gzip |
+| Check                                      | Observed result                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------ |
+| npm run typecheck                          | Passed                                                                   |
+| npm run lint                               | Passed                                                                   |
+| npm run build                              | Passed; about 145.6 KB JavaScript gzip and 7.95 KB CSS gzip              |
 | Impeccable design detector over changed UI | One advisory (an animation name), fixed; second run returned no findings |
-| Temporary engine script | 36 checks passed |
-| Temporary stage script | All passed |
+| Temporary engine script                    | 36 checks passed                                                         |
+| Temporary stage script                     | All passed                                                               |
 
 The engine script compared the new simulator with the committed original on chapters 1 and 2 (baseline and reference, with and without a restart) and on a saturated single path. Throughput, p95, errors, scenario success, cost and complexity were identical. It then checked the new scenarios and the validation rules:
 
