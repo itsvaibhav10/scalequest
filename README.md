@@ -109,10 +109,10 @@ Production is a manual static upload of `dist/`, not a Git-connected deployment,
 Current production, deployed 2026-11-05 with the Vercel CLI (`vercel deploy dist --prod`):
 
 - [Live production app](https://scalequest-iota.vercel.app)
-- [Deployment dashboard](https://vercel.com/vaibhavjain5625-7834s-projects/scalequest/5RiwwfobDTSQHzCKdDYk6tCg53K2)
-- Deployment ID: `dpl_5RiwwfobDTSQHzCKdDYk6tCg53K2`
+- [Deployment dashboard](https://vercel.com/vaibhavjain5625-7834s-projects/scalequest/HyG6jorn3e91qsnmqudUet5GdowB)
+- Deployment ID: `dpl_HyG6jorn3e91qsnmqudUet5GdowB`
 
-This deployment is the six-chapter build with the toybox redesign (commit `1ad0ade`, docs after it). It does not include the later fix that stops the canvas hint overlapping the board border; that fix is committed and goes live on the next upload. Verified on the live domain: the asset hashes match the local build, the self-hosted font returns 200, the brief and chapter 1 open after entering an estimate, and the chapter 6 reference design gives 99.5% in the spike scenario and 99.36% with a server failure at $1,295, with every objective passing.
+This deployment is the six-chapter build with the toybox redesign, including the fix that keeps the canvas hint below the board (commit `0d9820d`). Verified on the live domain: the asset hashes match the local build, the self-hosted font returns 200, the brief and chapter 1 open after entering an estimate, the canvas hint sits 10px below the board, and the chapter 6 reference design gives 99.5% in the spike scenario and 99.36% with a server failure at $1,295, with every objective passing. A first upload earlier the same day (`dpl_5RiwwfobDTSQHzCKdDYk6tCg53K2`) lacked the hint fix and was superseded.
 
 The previous production deployment (2026-09-09, the original two-chapter build, `dpl_9ej9YRBUt74fBFmHD9rM4unYMWD7`) is still available as a rollback candidate in the Vercel dashboard.
 
