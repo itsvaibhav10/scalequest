@@ -1,9 +1,11 @@
 import {
+  advance,
   initialState,
   type ConfirmedEstimate,
   type GameState,
 } from "../game/gameReducer";
 import { componentDefinitions } from "../content/components";
+import { readApiStages } from "../content/readApiCampaign";
 const PROGRESS_KEY = "scalequest.progress.v1";
 const RECOVERY_KEY = "scalequest.progress.recovery";
 function record(x: unknown): x is Record<string, unknown> {
@@ -43,7 +45,7 @@ export function validProgress(x: unknown): x is GameState {
     x.campaignId !== "scale-read-api" ||
     !Number.isInteger(x.stageIndex) ||
     Number(x.stageIndex) < 0 ||
-    Number(x.stageIndex) > 2
+    Number(x.stageIndex) >= readApiStages.length
   )
     return false;
   if (
@@ -70,7 +72,12 @@ export function validProgress(x: unknown): x is GameState {
         finite(n.x) &&
         Math.abs(Number(n.x)) <= 10000 &&
         finite(n.y) &&
-        Math.abs(Number(n.y)) <= 10000,
+        Math.abs(Number(n.y)) <= 10000 &&
+        (n.count === undefined ||
+          (Number.isInteger(n.count) &&
+            Number(n.count) >= 1 &&
+            Number(n.count) <= 40)) &&
+        (n.indexed === undefined || typeof n.indexed === "boolean"),
     )
   )
     return false;
@@ -111,33 +118,27 @@ export function validProgress(x: unknown): x is GameState {
     if (!finite(value) || Number(value) < min || Number(value) > max)
       return false;
   }
-  const expectedCompleted =
-    Number(x.stageIndex) === 0
-      ? []
-      : Number(x.stageIndex) === 1
-        ? ["requirements"]
-        : x.sliceComplete
-          ? ["requirements", "ten-users", "hundred-users"]
-          : ["requirements", "ten-users"];
+  const index = Number(x.stageIndex);
+  const ids_ = readApiStages.map((stage) => stage.id);
+  const expectedCompleted = x.sliceComplete
+    ? ids_.slice(0, index + 1)
+    : ids_.slice(0, index);
   if (
+    (x.sliceComplete === true && index === 0) ||
     !Array.isArray(x.completedStageIds) ||
     x.completedStageIds.length !== expectedCompleted.length ||
     !x.completedStageIds.every((v, i) => v === expectedCompleted[i])
   )
     return false;
-  const allowedKinds =
-    Number(x.stageIndex) === 0
-      ? []
-      : Number(x.stageIndex) === 1
-        ? ["client", "api-server", "local-data"]
-        : ["client", "api-server", "local-data", "relational-database"];
+  const allowedKinds: string[] =
+    index === 0 ? [] : readApiStages[index].availableComponents;
   if (!x.architecture.nodes.every((n) => allowedKinds.includes(String(n.kind))))
     return false;
   if (
     !record(x.scoreByStage) ||
     !Object.entries(x.scoreByStage).every(
       ([id, n]) =>
-        ["ten-users", "hundred-users"].includes(id) &&
+        ids_.slice(1).includes(id) &&
         finite(n) &&
         Number(n) >= 0 &&
         Number(n) <= 100,
@@ -180,13 +181,20 @@ export function loadProgress(): GameState {
     if (!raw) return fallback;
     try {
       const parsed: unknown = JSON.parse(raw);
-      if (validProgress(parsed))
-        return {
+      if (validProgress(parsed)) {
+        const loaded: GameState = {
           ...parsed,
           lastResult: null,
+          runs: {},
           progressNotice: null,
           preserveStoredProgress: false,
         };
+        // A chapter finished before later chapters existed now leads on.
+        return loaded.sliceComplete &&
+          loaded.stageIndex < readApiStages.length - 1
+          ? advance(loaded)
+          : loaded;
+      }
     } catch {
       /* Preserve the original below before replacing corrupt data. */
     }
@@ -221,6 +229,7 @@ export function saveProgress(state: GameState): boolean {
       JSON.stringify({
         ...state,
         lastResult: null,
+        runs: {},
         progressNotice: null,
         preserveStoredProgress: false,
       }),

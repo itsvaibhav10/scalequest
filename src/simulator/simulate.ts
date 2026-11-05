@@ -2,8 +2,10 @@ import { componentDefinitions } from "../content/components";
 import type {
   Architecture,
   Bottleneck,
+  ComponentInstance,
   HealthStatus,
   MetricResult,
+  NodeLoad,
   SimulationIncident,
   SimulationResult,
   ValidationIssue,
@@ -11,7 +13,13 @@ import type {
 } from "../domain/systemDesign";
 import { calculateWorkload } from "./calculateWorkload";
 import { explainResult } from "./explainResult";
+import { capacityDuring, instanceCount, nodeSpec } from "./nodeSpec";
 import { validateArchitecture } from "./validateArchitecture";
+
+/** During a spike, abusive traffic adds this multiple of normal peak load. */
+export const SPIKE_FACTOR = 3;
+/** The p95 latency is the slowest path that carries at least 5% of requests. */
+const TAIL = 0.05;
 
 export function simulateArchitecture(
   architecture: Architecture,
@@ -25,13 +33,18 @@ export function simulateArchitecture(
   const workload = calculateWorkload(safeInput);
   const issues = [...workloadIssues, ...validateArchitecture(architecture)];
   const cost = architecture.nodes.reduce(
-    (sum, node) => sum + (componentDefinitions[node.kind]?.monthlyCostUsd ?? 0),
+    (sum, node) =>
+      sum +
+      (componentDefinitions[node.kind]?.monthlyCostUsd ?? 0) *
+        instanceCount(node),
     0,
   );
   const complexityValue =
     architecture.nodes.reduce(
       (sum, node) =>
-        sum + (componentDefinitions[node.kind]?.complexityPoints ?? 0),
+        sum +
+        (componentDefinitions[node.kind]?.complexityPoints ?? 0) +
+        (instanceCount(node) - 1) * 0.25,
       0,
     ) +
     architecture.edges.length * 0.25;
@@ -49,42 +62,23 @@ export function simulateArchitecture(
       durable,
     );
 
-  const path = resolveSinglePath(architecture);
-  const processingNodes = path.filter((node) => node.kind !== "client");
-  const pathCapacity = Math.min(
-    ...processingNodes.map(
-      (node) => componentDefinitions[node.kind].capacityRps,
-    ),
-  );
-  const normalThroughput = Math.min(workload.peakRps, pathCapacity);
-  const overloadRatio =
-    workload.peakRps === 0
-      ? 0
-      : Math.max(0, workload.peakRps - pathCapacity) / workload.peakRps;
-  const saturation = pathCapacity === 0 ? 0 : workload.peakRps / pathCapacity;
-  const latencyMultiplier = saturation <= 0.7 ? 1 : 1 + (saturation - 0.7) * 4;
-  const p95Latency =
-    path.reduce(
-      (sum, node) => sum + componentDefinitions[node.kind].baseLatencyMs,
-      0,
-    ) * latencyMultiplier;
+  const flow = routeTraffic(architecture, workload.peakRps, incident);
   const restartLostData = incident === "restart" && !durable;
-  const errorRate = restartLostData ? 100 : overloadRatio * 100;
+  const successFraction =
+    workload.peakRps === 0 ? 1 : flow.completedRps / workload.peakRps;
+  const errorRate = restartLostData ? 100 : (1 - successFraction) * 100;
   const scenarioSuccess = 100 - errorRate;
-  const throughputValue = restartLostData ? 0 : normalThroughput;
-  const bottlenecks: Bottleneck[] = processingNodes
-    .filter(
-      (node) => workload.peakRps > componentDefinitions[node.kind].capacityRps,
-    )
-    .map((node) => ({
-      componentId: node.id,
+  const throughputValue = restartLostData ? 0 : flow.completedRps;
+  const p95Latency = tailLatency(flow.paths);
+  const bottlenecks: Bottleneck[] = flow.loads
+    .filter((load) => load.offeredRps > load.capacityRps)
+    .map((load) => ({
+      componentId: load.componentId,
       severity:
-        workload.peakRps > componentDefinitions[node.kind].capacityRps * 1.2
-          ? "critical"
-          : "warning",
-      offeredRps: workload.peakRps,
-      capacityRps: componentDefinitions[node.kind].capacityRps,
-      explanation: `${node.label} receives ${workload.peakRps.toFixed(2)} RPS but supports ${componentDefinitions[node.kind].capacityRps} RPS.`,
+        load.offeredRps > load.capacityRps * 1.2 ? "critical" : "warning",
+      offeredRps: load.offeredRps,
+      capacityRps: load.capacityRps,
+      explanation: `${load.label} receives ${load.offeredRps.toFixed(2)} RPS but supports ${load.capacityRps.toFixed(2)} RPS.`,
     }));
 
   const result: SimulationResult = {
@@ -97,13 +91,13 @@ export function simulateArchitecture(
       restartLostData || bottlenecks.length ? "critical" : "healthy",
       restartLostData
         ? "The API recovered, but no successful reads remain because its local data was lost."
-        : `Successful throughput is limited to ${pathCapacity} RPS by the request path.`,
+        : `${flow.completedRps.toFixed(2)} of ${workload.peakRps.toFixed(2)} peak RPS complete successfully.`,
     ),
     p95Latency: metric(
       p95Latency,
       "ms",
       thresholdStatus(p95Latency, workloadInput.targetP95Ms),
-      `Base path latency is adjusted by a ${latencyMultiplier.toFixed(2)}× saturation multiplier.`,
+      "The slowest route that carries at least 5% of requests, with each component slowed as it nears capacity.",
     ),
     errorRate: metric(
       errorRate,
@@ -111,7 +105,7 @@ export function simulateArchitecture(
       errorRate === 0 ? "healthy" : errorRate < 5 ? "warning" : "critical",
       restartLostData
         ? "The recovered API cannot find data that was stored only in its previous process."
-        : "This estimate models errors caused by capacity overload.",
+        : "Requests lost to overload, a failed instance or rejection by the rate limiter.",
     ),
     availability: metric(
       scenarioSuccess,
@@ -135,18 +129,25 @@ export function simulateArchitecture(
         : complexityValue <= 7
           ? "warning"
           : "critical",
-      "Complexity combines component points with 0.25 points per connection.",
+      "Complexity combines component points, extra instances and 0.25 points per connection.",
     ),
     bottlenecks,
+    nodeLoads: flow.loads,
+    shedRps: flow.shedRps,
     trace: [],
     incident,
     durable,
   };
   result.trace = explainResult({
     workload,
-    path,
-    pathCapacity,
-    saturation,
+    route: flow.order.map(
+      (node) =>
+        `${node.label}${instanceCount(node) > 1 ? ` ×${instanceCount(node)}` : ""}`,
+    ),
+    loads: flow.loads,
+    cacheNotes: flow.cacheNotes,
+    shedRps: flow.shedRps,
+    botRps: flow.botRps,
     latencyMs: p95Latency,
     errorRate,
     scenarioSuccess,
@@ -156,6 +157,153 @@ export function simulateArchitecture(
     durable,
   });
   return result;
+}
+
+interface RoutePath {
+  probability: number;
+  latencyMs: number;
+}
+
+/**
+ * Pushes legitimate and abusive traffic through the (acyclic) graph in
+ * topological order. A node serves at most its capacity; the rest is lost.
+ * Fan-out is weighted by the capacity of each target, so identical servers
+ * share traffic equally and a bigger data tier takes proportionally more.
+ */
+function routeTraffic(
+  architecture: Architecture,
+  peakRps: number,
+  incident: SimulationIncident,
+) {
+  const byId = new Map(architecture.nodes.map((node) => [node.id, node]));
+  const outgoing = new Map<string, ComponentInstance[]>();
+  const indegree = new Map(architecture.nodes.map((node) => [node.id, 0]));
+  for (const edge of architecture.edges) {
+    const target = byId.get(edge.target);
+    if (!target) continue;
+    outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), target]);
+    indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
+  }
+  const order: ComponentInstance[] = [];
+  const ready = architecture.nodes.filter(
+    (node) => indegree.get(node.id) === 0,
+  );
+  while (ready.length) {
+    const node = ready.shift() as ComponentInstance;
+    order.push(node);
+    for (const next of outgoing.get(node.id) ?? []) {
+      const left = (indegree.get(next.id) ?? 0) - 1;
+      indegree.set(next.id, left);
+      if (left === 0) ready.push(next);
+    }
+  }
+
+  const botRps = incident === "spike" ? peakRps * SPIKE_FACTOR : 0;
+  const incoming = new Map<string, { legit: number; bot: number }>();
+  const addIncoming = (id: string, legit: number, bot: number) => {
+    const current = incoming.get(id) ?? { legit: 0, bot: 0 };
+    incoming.set(id, { legit: current.legit + legit, bot: current.bot + bot });
+  };
+  const weights = (targets: ComponentInstance[]) => {
+    const capacities = targets.map((t) => capacityDuring(t, incident));
+    const total = capacities.reduce((a, b) => a + b, 0);
+    return capacities.map((c) =>
+      total === 0 ? 1 / targets.length : c / total,
+    );
+  };
+
+  const loads: NodeLoad[] = [];
+  const cacheNotes: string[] = [];
+  let completedRps = 0;
+  let shedRps = 0;
+  for (const node of order) {
+    const def = componentDefinitions[node.kind];
+    const inbound =
+      def.role === "source"
+        ? { legit: peakRps, bot: botRps }
+        : (incoming.get(node.id) ?? { legit: 0, bot: 0 });
+    const total = inbound.legit + inbound.bot;
+    const capacity = capacityDuring(node, incident);
+    const ratio =
+      def.role === "source" || total === 0 ? 1 : Math.min(1, capacity / total);
+    let legit = inbound.legit * ratio;
+    let bot = inbound.bot * ratio;
+    if (def.role !== "source")
+      loads.push({
+        componentId: node.id,
+        label: node.label,
+        instances: instanceCount(node),
+        offeredRps: total,
+        capacityRps: capacity,
+        utilization:
+          capacity === 0 ? (total > 0 ? Infinity : 0) : total / capacity,
+      });
+    if (def.role === "gate") {
+      shedRps += bot;
+      legit *= 1 - (def.falsePositiveRate ?? 0);
+      bot = 0;
+    }
+    if (def.role === "data") {
+      completedRps += legit;
+      continue;
+    }
+    if (def.role === "cache") {
+      const hit = def.hitRatio ?? 0;
+      completedRps += legit * hit;
+      legit *= 1 - hit;
+      bot *= 1 - hit;
+      cacheNotes.push(
+        `${node.label} answers ${(hit * 100).toFixed(0)}% of reads itself; ${legit.toFixed(2)} RPS reach the data tier.`,
+      );
+    }
+    const targets = outgoing.get(node.id) ?? [];
+    weights(targets).forEach((weight, index) =>
+      addIncoming(targets[index].id, legit * weight, bot * weight),
+    );
+  }
+
+  const loadById = new Map(loads.map((load) => [load.componentId, load]));
+  const paths: RoutePath[] = [];
+  const walk = (
+    node: ComponentInstance,
+    probability: number,
+    latency: number,
+  ) => {
+    const def = componentDefinitions[node.kind];
+    const utilization = loadById.get(node.id)?.utilization ?? 0;
+    const saturation = Number.isFinite(utilization) ? utilization : 0;
+    const multiplier = saturation <= 0.7 ? 1 : 1 + (saturation - 0.7) * 4;
+    const here = latency + nodeSpec(node).baseLatencyMs * multiplier;
+    if (def.role === "data") {
+      paths.push({ probability, latencyMs: here });
+      return;
+    }
+    let remaining = probability;
+    if (def.role === "cache") {
+      const hit = def.hitRatio ?? 0;
+      paths.push({ probability: probability * hit, latencyMs: here });
+      remaining = probability * (1 - hit);
+    }
+    const targets = outgoing.get(node.id) ?? [];
+    weights(targets).forEach((weight, index) =>
+      walk(targets[index], remaining * weight, here),
+    );
+  };
+  const client = order.find((node) => node.kind === "client");
+  if (client) walk(client, 1, 0);
+  return { order, loads, paths, cacheNotes, completedRps, shedRps, botRps };
+}
+
+function tailLatency(paths: RoutePath[]): number {
+  const slowestFirst = paths
+    .filter((path) => path.probability > 0)
+    .sort((a, b) => b.latencyMs - a.latencyMs);
+  let covered = 0;
+  for (const path of slowestFirst) {
+    covered += path.probability;
+    if (covered >= TAIL) return path.latencyMs;
+  }
+  return slowestFirst.at(-1)?.latencyMs ?? 0;
 }
 
 function validateWorkload(input: WorkloadInput): ValidationIssue[] {
@@ -205,20 +353,6 @@ function safeWorkload(input: WorkloadInput): WorkloadInput {
     ),
     monthlyBudgetUsd: finiteOrZero(input.monthlyBudgetUsd),
   };
-}
-
-function resolveSinglePath(architecture: Architecture) {
-  const byId = new Map(architecture.nodes.map((node) => [node.id, node]));
-  const path = [] as Architecture["nodes"];
-  let current = architecture.nodes.find((node) => node.kind === "client");
-  while (current) {
-    path.push(current);
-    const edge = architecture.edges.find(
-      (candidate) => candidate.source === current?.id,
-    );
-    current = edge ? byId.get(edge.target) : undefined;
-  }
-  return path;
 }
 
 function metric(
@@ -280,6 +414,8 @@ function invalidResult(
       "Complexity is shown even though the graph is invalid.",
     ),
     bottlenecks: [],
+    nodeLoads: [],
+    shedRps: 0,
     trace: issues.map((issue) => `Validation: ${issue.message}`),
     incident,
     durable,

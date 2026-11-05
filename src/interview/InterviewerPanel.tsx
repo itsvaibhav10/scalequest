@@ -1,9 +1,9 @@
 import { useGame } from "../game/GameProvider";
-import { questions, calculateStageScore } from "../scoring/calculateStageScore";
+import { calculateStageScore } from "../scoring/calculateStageScore";
 import { GoldenCirclePanel } from "../learning/GoldenCirclePanel";
 export function InterviewerPanel() {
   const { state, stage, dispatch } = useGame();
-  const q = questions[state.stageIndex === 2 ? 2 : 1];
+  const q = stage.questions;
   const score = calculateStageScore(state);
   const result = state.lastResult;
   const prompt = !result
@@ -28,28 +28,31 @@ export function InterviewerPanel() {
           <p>{prompt}</p>
         </div>
       </div>
-      {(["diagnosis", "tradeoff"] as const).map((field) => (
-        <fieldset className="answer-group" key={field}>
-          <legend>{q[field].prompt}</legend>
-          {q[field].options.map(([id, label]) => (
-            <label
-              className={
-                state.answers[field] === id ? "answer selected" : "answer"
-              }
-              key={id}
-            >
-              <input
-                type="radio"
-                name={field}
-                value={id}
-                checked={state.answers[field] === id}
-                onChange={() => dispatch({ type: "answer", field, value: id })}
-              />
-              <span>{label}</span>
-            </label>
-          ))}
-        </fieldset>
-      ))}
+      {q &&
+        (["diagnosis", "tradeoff"] as const).map((field) => (
+          <fieldset className="answer-group" key={field}>
+            <legend>{q[field].prompt}</legend>
+            {q[field].options.map(([id, label]) => (
+              <label
+                className={
+                  state.answers[field] === id ? "answer selected" : "answer"
+                }
+                key={id}
+              >
+                <input
+                  type="radio"
+                  name={field}
+                  value={id}
+                  checked={state.answers[field] === id}
+                  onChange={() =>
+                    dispatch({ type: "answer", field, value: id })
+                  }
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </fieldset>
+        ))}
       {result && (
         <details className="score-details">
           <summary>Your reasoning · {score.total}/100</summary>

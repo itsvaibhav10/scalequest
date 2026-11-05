@@ -2,17 +2,14 @@ import { useState } from "react";
 import { useGame } from "../game/GameProvider";
 import { componentDefinitions } from "../content/components";
 export function GoldenCirclePanel() {
-  const { state } = useGame();
+  const { state, stage } = useGame();
   const [tab, setTab] = useState<"why" | "how" | "what">("why");
-  const kind =
-    state.selectedLearningKind ??
-    (state.stageIndex === 2 ? "relational-database" : "local-data");
+  const kind = state.selectedLearningKind ?? stage.focusKind;
   const component = componentDefinitions[kind];
   const learning = component.learning;
   return (
     <section className="learning-panel">
-      <div className="section-label">UNDER THE HOOD</div>
-      <h3>{component.label}</h3>
+      <h3>Why {component.label.toLowerCase()}?</h3>
       <div className="tabs" role="tablist" aria-label="Golden Circle">
         {(["why", "how", "what"] as const).map((t) => (
           <button

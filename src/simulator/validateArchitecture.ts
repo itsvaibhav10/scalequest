@@ -4,14 +4,16 @@ import type {
   ComponentKind,
   ValidationIssue,
 } from "../domain/systemDesign";
+import { MAX_INSTANCES, instanceCount } from "./nodeSpec";
 
-const knownKinds = new Set<ComponentKind>([
-  "client",
-  "api-server",
+const knownKinds = new Set<ComponentKind>(
+  Object.keys(componentDefinitions) as ComponentKind[],
+);
+const dataKinds = new Set<ComponentKind>([
   "local-data",
   "relational-database",
+  "read-replica",
 ]);
-const dataKinds = new Set<ComponentKind>(["local-data", "relational-database"]);
 
 export function validateArchitecture(
   architecture: Architecture,
@@ -48,9 +50,10 @@ export function validateArchitecture(
   const knownNodes = [...nodes.values()].filter((node) =>
     knownKinds.has(node.kind),
   );
-  const clients = knownNodes.filter((node) => node.kind === "client");
-  const apis = knownNodes.filter((node) => node.kind === "api-server");
-  const dataNodes = knownNodes.filter((node) => dataKinds.has(node.kind));
+  const ofKind = (kind: ComponentKind) =>
+    knownNodes.filter((node) => node.kind === kind);
+  const clients = ofKind("client");
+  const apis = ofKind("api-server");
   if (!clients.length)
     issues.push({
       code: "missing-client",
@@ -63,11 +66,23 @@ export function validateArchitecture(
       message: "Add an API server to handle the request.",
       nodeIds: [],
     });
-  if (!dataNodes.length)
+  if (!knownNodes.some((node) => dataKinds.has(node.kind)))
     issues.push({
       code: "missing-data",
       message: "Add a supported data component.",
       nodeIds: [],
+    });
+
+  const badCounts = knownNodes.filter((node) => {
+    if (!componentDefinitions[node.kind].scalable) return false;
+    const amount = instanceCount(node);
+    return !Number.isInteger(amount) || amount < 1 || amount > MAX_INSTANCES;
+  });
+  if (badCounts.length)
+    issues.push({
+      code: "invalid-count",
+      message: `Use a whole number of instances between 1 and ${MAX_INSTANCES}.`,
+      nodeIds: badCounts.map((node) => node.id),
     });
 
   const validEdges = architecture.edges.filter((edge) => {
@@ -106,53 +121,68 @@ export function validateArchitecture(
   ) {
     issues.push({
       code: "unsupported-cycle",
-      message: "Cycles are not supported in this guided slice.",
+      message: "Requests must flow one way; remove the cycle.",
       nodeIds: knownNodes.map((node) => node.id),
     });
   }
 
-  const paths = clients.flatMap((client) =>
-    findDataPaths(client.id, nodes, validEdges),
+  const fromClients = reach(
+    clients.map((node) => node.id),
+    validEdges,
+    "forward",
   );
-  if (!paths.length) {
+  const dataIds = knownNodes
+    .filter((node) => dataKinds.has(node.kind))
+    .map((node) => node.id);
+  const toData = reach(dataIds, validEdges, "backward");
+  if (!dataIds.some((id) => fromClients.has(id)))
     issues.push({
       code: "disconnected-path",
-      message: "Connect one complete client → API server → data path.",
+      message: "Connect a complete client → API server → data path.",
       nodeIds: knownNodes.map((node) => node.id),
     });
-  } else if (paths.length !== 1) {
-    issues.push({
-      code: "ambiguous-path",
-      message:
-        "This slice supports exactly one request path; remove branching or parallel paths.",
-      nodeIds: [...new Set(paths.flat())],
-    });
-  }
-
-  if (paths.length === 1) {
-    const pathIds = new Set(paths[0]);
-    const extras = knownNodes
-      .filter((node) => !pathIds.has(node.id))
+  else {
+    const stray = knownNodes
+      .filter((node) => !fromClients.has(node.id) || !toData.has(node.id))
       .map((node) => node.id);
-    const pathEdgeKeys = new Set(
-      paths[0].slice(0, -1).map((id, index) => `${id}->${paths[0][index + 1]}`),
-    );
-    const extraEdges = validEdges.filter(
-      (edge) => !pathEdgeKeys.has(`${edge.source}->${edge.target}`),
-    );
-    if (extras.length || extraEdges.length)
+    if (stray.length)
       issues.push({
         code: "disconnected-component",
         message:
-          "Remove components or connections outside the single simulated request path.",
-        nodeIds: [
-          ...new Set([
-            ...extras,
-            ...extraEdges.flatMap((edge) => [edge.source, edge.target]),
-          ]),
-        ],
+          "Every component must sit on a route that starts at the client and ends at data. Connect or remove the others.",
+        nodeIds: stray,
       });
   }
+
+  const apiCount = apis.reduce((sum, node) => sum + instanceCount(node), 0);
+  if (
+    apiCount > 1 &&
+    !validEdges.some(
+      (edge) =>
+        nodes.get(edge.source)?.kind === "load-balancer" &&
+        nodes.get(edge.target)?.kind === "api-server",
+    )
+  )
+    issues.push({
+      code: "missing-load-balancer",
+      message:
+        "Several API servers need a load balancer in front, otherwise clients cannot choose between them.",
+      nodeIds: apis.map((node) => node.id),
+    });
+  if (ofKind("read-replica").length && !ofKind("relational-database").length)
+    issues.push({
+      code: "replica-without-primary",
+      message:
+        "A read replica copies a primary database. Add the database first.",
+      nodeIds: ofKind("read-replica").map((node) => node.id),
+    });
+  if (ofKind("local-data").length && apiCount > 1)
+    issues.push({
+      code: "stateful-api-scaled",
+      message:
+        "Each API server would hold its own private copy of local data. Use a shared database before adding servers.",
+      nodeIds: [...ofKind("local-data"), ...apis].map((node) => node.id),
+    });
   return issues;
 }
 
@@ -162,26 +192,27 @@ function count(values: string[]): Map<string, number> {
   return result;
 }
 
-function findDataPaths(
-  start: string,
-  nodes: Map<string, Architecture["nodes"][number]>,
+function reach(
+  starts: string[],
   edges: Architecture["edges"],
-): string[][] {
-  const paths: string[][] = [];
-  const visit = (id: string, path: string[]) => {
-    const node = nodes.get(id);
-    if (!node || path.includes(id)) return;
-    const nextPath = [...path, id];
-    if (dataKinds.has(node.kind)) {
-      paths.push(nextPath);
-      return;
+  direction: "forward" | "backward",
+): Set<string> {
+  const seen = new Set<string>(starts);
+  const queue = [...starts];
+  while (queue.length) {
+    const id = queue.pop() as string;
+    for (const edge of edges) {
+      const [from, to] =
+        direction === "forward"
+          ? [edge.source, edge.target]
+          : [edge.target, edge.source];
+      if (from === id && !seen.has(to)) {
+        seen.add(to);
+        queue.push(to);
+      }
     }
-    edges
-      .filter((edge) => edge.source === id)
-      .forEach((edge) => visit(edge.target, nextPath));
-  };
-  visit(start, []);
-  return paths;
+  }
+  return seen;
 }
 
 function hasCycle(nodeIds: string[], edges: Architecture["edges"]): boolean {

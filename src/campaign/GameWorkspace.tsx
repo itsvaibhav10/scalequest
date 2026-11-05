@@ -22,20 +22,8 @@ export function GameWorkspace() {
         <main className="workspace-main">
           <div className="mission-heading">
             <div>
-              <div className="section-label">
-                MISSION {state.stageIndex.toString().padStart(2, "0")} /{" "}
-                {state.stageIndex === 1 ? "FOUNDATIONS" : "PERSISTENCE"}
-              </div>
-              <h1>
-                {state.stageIndex === 1
-                  ? "Keep it simple."
-                  : "Make the data survive."}
-              </h1>
-              <p>
-                {state.stageIndex === 1
-                  ? "Serve product lookups for 10 daily active users."
-                  : "100 daily users. One new promise: a restart must not erase products."}
-              </p>
+              <h1>{stage.mission.headline}</h1>
+              <p>{stage.mission.summary}</p>
             </div>
             <Button
               variant="ghost"
@@ -57,7 +45,10 @@ export function GameWorkspace() {
             <ArchitectureCanvas key={stage.id} />
           </div>
           <div className="canvas-toolbar">
-            <span className="small muted">One synchronous request path</span>
+            <span className="small muted">
+              Traffic flows left to right ·{" "}
+              {stage.userCount.toLocaleString("en-US")} daily users
+            </span>
             <Button variant="ghost" onClick={() => setCompare(true)}>
               <Icon name="compare" size={16} />
               Compare designs
@@ -69,13 +60,15 @@ export function GameWorkspace() {
             {stage.objectives.map((o) => {
               const passed =
                 !!state.lastResult &&
-                o.evaluate(state.architecture, state.lastResult);
+                o.evaluate(state.architecture, state.lastResult, state.runs);
               return (
                 <div
                   key={o.id}
                   className={passed ? "objective passed" : "objective"}
                 >
-                  <span>{passed ? "✓" : "○"}</span>
+                  <span className="obj-mark">
+                    {passed && <Icon name="check" size={13} />}
+                  </span>
                   {o.label}
                 </div>
               );
@@ -83,45 +76,35 @@ export function GameWorkspace() {
             <div
               className={score.total === 100 ? "objective passed" : "objective"}
             >
-              <span>{score.total === 100 ? "✓" : "○"}</span>Defend your
-              diagnosis and trade-offs
+              <span className="obj-mark">
+                {score.total === 100 && <Icon name="check" size={13} />}
+              </span>
+              Defend your diagnosis and trade-offs
             </div>
             <Button
               variant="primary"
               onClick={completeStage}
               disabled={!canCompleteStage}
             >
-              {state.sliceComplete
-                ? "Chapter complete"
-                : state.stageIndex === 1
-                  ? "Continue to 100 users"
-                  : "Complete this chapter"}
+              {state.sliceComplete ? "Campaign complete" : stage.continueLabel}
               <Icon name="arrow" size={16} />
             </Button>
           </div>
-          {state.sliceComplete && (
+          {state.sliceComplete && stage.completion && (
             <section className="completion">
-              <span className="success-text">✓ FIRST CHAPTER COMPLETE</span>
-              <h2>You designed for the requirement.</h2>
-              <p>
-                You started with a simple read path, estimated traffic, and
-                moved product data outside the API process when durability
-                became necessary.
-              </p>
+              <span className="success-text">✓ CAMPAIGN COMPLETE</span>
+              <h2>{stage.completion.headline}</h2>
+              <p>{stage.completion.body}</p>
               <h3>Your interview summary</h3>
               <p>
-                “For {state.workload.activeUsers} daily users, I expect{" "}
-                {state.lastResult?.workload.peakRps.toFixed(2) ??
-                  "a small number of"}{" "}
-                peak requests per second. A client calls one API server, which
-                reads an external database. This adds cost and a dependency but
-                preserves data after the API restarts. The API is still a single
-                point of failure; replication and traffic routing would need new
-                requirements.”
-              </p>
-              <p className="muted">
-                Next chapter: indexes, pooling and scaling the API. These
-                missions are on the roadmap.
+                “
+                {stage.completion.summary(
+                  state.lastResult?.workload.peakRps.toLocaleString("en-US", {
+                    maximumFractionDigits: 0,
+                  }) ?? "a large number of",
+                  state.workload.activeUsers,
+                )}
+                ”
               </p>
               <Button onClick={() => setCompare(true)}>
                 Review my architecture

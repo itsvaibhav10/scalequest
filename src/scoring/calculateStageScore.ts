@@ -1,50 +1,5 @@
 import type { GameState } from "../game/gameReducer";
 import { readApiStages } from "../content/readApiCampaign";
-export const questions = {
-  1: {
-    diagnosis: {
-      prompt: "What is the constraint at this scale?",
-      options: [
-        ["capacity", "We need more API servers."],
-        ["simple", "No capacity bottleneck: keep the request path simple."],
-        ["queue", "Every read needs a queue."],
-      ],
-      correct: "simple",
-    },
-    tradeoff: {
-      prompt: "What are you accepting with local data?",
-      options: [
-        ["volatile", "Low cost, but data is lost when the process restarts."],
-        ["durable", "It is as durable as an external database."],
-        ["free", "There are no operational trade-offs."],
-      ],
-      correct: "volatile",
-    },
-  },
-  2: {
-    diagnosis: {
-      prompt: "Why did the product disappear after restart?",
-      options: [
-        ["traffic", "100 users always overload one API server."],
-        ["memory", "The product lived in process memory."],
-        ["network", "Every restart requires a load balancer."],
-      ],
-      correct: "memory",
-    },
-    tradeoff: {
-      prompt: "What does an external database change?",
-      options: [
-        ["uptime", "The API can never be unavailable again."],
-        [
-          "persist",
-          "Data survives the API process; cost and a new dependency increase.",
-        ],
-        ["fast", "Every request automatically becomes faster."],
-      ],
-      correct: "persist",
-    },
-  },
-} as const;
 export interface StageScore {
   total: number;
   categories: {
@@ -73,10 +28,11 @@ export function estimateCorrect(state: GameState) {
 }
 export function calculateStageScore(state: GameState): StageScore {
   const result = state.lastResult;
-  const q = questions[state.stageIndex === 2 ? 2 : 1];
+  const stage = readApiStages[state.stageIndex];
+  const q = stage.questions;
   const objectives = result
-    ? readApiStages[state.stageIndex].objectives.every((o) =>
-        o.evaluate(state.architecture, result),
+    ? stage.objectives.every((o) =>
+        o.evaluate(state.architecture, result, state.runs),
       )
     : false;
   const parts = [
@@ -95,7 +51,7 @@ export function calculateStageScore(state: GameState): StageScore {
     [
       "Diagnosis",
       20,
-      state.answers.diagnosis === q.diagnosis.correct,
+      !!q && state.answers.diagnosis === q.diagnosis.correct,
       "Identify the cause from the scenario evidence.",
     ],
     [
@@ -107,7 +63,7 @@ export function calculateStageScore(state: GameState): StageScore {
     [
       "Trade-off reasoning",
       15,
-      state.answers.tradeoff === q.tradeoff.correct,
+      !!q && state.answers.tradeoff === q.tradeoff.correct,
       "Choose the limitation that comes with your decision.",
     ],
     [
@@ -115,8 +71,8 @@ export function calculateStageScore(state: GameState): StageScore {
       10,
       !!result?.valid &&
         result.monthlyCost.value <= state.workload.monthlyBudgetUsd &&
-        state.architecture.nodes.length === 3,
-      "Use a focused three-component path within budget.",
+        state.architecture.nodes.length <= stage.reference.nodes.length,
+      "Stay within budget without more components than the problem needs.",
     ],
   ] as const;
   const categories = parts.map(([label, max, ok, explanation]) => ({

@@ -5,10 +5,13 @@ import { GameWorkspace } from "../campaign/GameWorkspace";
 import { Icon } from "../ui/Icon";
 import { Button } from "../ui/Button";
 import { Modal } from "../ui/Modal";
+import { IsoBlock } from "../canvas/IsoBlock";
+import { readApiStages } from "../content/readApiCampaign";
 function Shell() {
   const { state, dispatch, storageFailed } = useGame();
   const [reset, setReset] = useState(false);
   const [help, setHelp] = useState(false);
+  const last = readApiStages.length - 1;
   const milestones = [
     ["Brief", "Understand the problem"],
     ["10 users", "Build the first version"],
@@ -22,7 +25,7 @@ function Shell() {
     <div className="app">
       <header className="app-header">
         <a className="brand" href="./" aria-label="ScaleQuest home">
-          <Icon name="layers" size={27} />
+          <IsoBlock kind="api-server" size={46} />
           <span>
             Scale<span>Quest</span>
           </span>
@@ -53,20 +56,22 @@ function Shell() {
           <div
             key={title}
             aria-current={i === state.stageIndex ? "step" : undefined}
-            className={`milestone ${i === state.stageIndex ? "active" : ""} ${i < state.stageIndex || (state.sliceComplete && i === 2) ? "done" : ""} ${i > 2 ? "future" : ""}`}
+            className={`milestone ${i === state.stageIndex ? "active" : ""} ${i < state.stageIndex || (state.sliceComplete && i === last) ? "done" : ""} ${i > state.stageIndex ? "future" : ""}`}
           >
-            <span className="milestone-number">
-              {i < state.stageIndex || (state.sliceComplete && i === 2) ? (
-                <Icon name="check" size={16} />
-              ) : (
-                i + 1
-              )}
+            <span className="milestone-tile" aria-hidden="true">
+              <span className="tile-face" />
+              <span className="tile-mark">
+                {i < state.stageIndex || (state.sliceComplete && i === last) ? (
+                  <Icon name="check" size={16} />
+                ) : i > state.stageIndex ? (
+                  <Icon name="lock" size={13} />
+                ) : (
+                  i + 1
+                )}
+              </span>
             </span>
             <div>
-              <strong>
-                {title}
-                {i > 2 && <Icon name="lock" size={12} />}
-              </strong>
+              <strong>{title}</strong>
               <small>{copy}</small>
             </div>
           </div>
@@ -86,9 +91,7 @@ function Shell() {
       {state.stageIndex === 0 ? <CampaignIntro /> : <GameWorkspace />}
       <footer className="app-footer">
         <span>ScaleQuest · Learn by making decisions.</span>
-        <span>
-          Chapter 1 of the planned 0 → 1M journey · No AI or cloud services
-        </span>
+        <span>Six chapters from 0 to 1M users · No AI or cloud services</span>
       </footer>
       {reset && (
         <Modal title="Start a fresh campaign?" onClose={() => setReset(false)}>
@@ -127,8 +130,9 @@ function Shell() {
               Read the trace, choose your diagnosis and explain the trade-off.
             </li>
             <li>
-              Meet all objectives to unlock the persistence mission. Run its
-              restart incident before and after adding the database.
+              Meet all objectives and answer the interview questions to unlock
+              the next chapter. Some chapters add incidents, such as a restart,
+              a server failure or a traffic spike. Run them to test your design.
             </li>
           </ol>
           <p>

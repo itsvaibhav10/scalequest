@@ -4,6 +4,7 @@ import { calculateWorkload } from "../simulator/calculateWorkload";
 import { estimateCorrect } from "../scoring/calculateStageScore";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { IsoBlock } from "../canvas/IsoBlock";
 export function CampaignIntro() {
   const { state, dispatch, begin } = useGame();
   const [showMath, setShowMath] = useState(false);
@@ -12,7 +13,6 @@ export function CampaignIntro() {
   return (
     <main className="intro">
       <section className="intro-story">
-        <div className="intro-kicker">CAMPAIGN 01 / THE READ API</div>
         <h1>
           Good systems start
           <br />
@@ -41,25 +41,29 @@ export function CampaignIntro() {
           )}
         </pre>
         <div className="intro-lessons">
-          {[
+          {(
             [
-              "01",
-              "Clarify the workload",
-              "Users are not requests per second.",
-            ],
-            [
-              "02",
-              "Build the simplest path",
-              "Trace one request from client to data.",
-            ],
-            [
-              "03",
-              "Respond to a new constraint",
-              "See why persistence changes your design.",
-            ],
-          ].map(([n, title, copy]) => (
-            <div key={n}>
-              <span>{n}</span>
+              [
+                "client",
+                "Clarify the workload",
+                "Users are not requests per second.",
+              ],
+              [
+                "api-server",
+                "Build the simplest path",
+                "Trace one request from client to data.",
+              ],
+              [
+                "relational-database",
+                "Break it, then fix it",
+                "Every chapter starts with a failure you can see.",
+              ],
+            ] as const
+          ).map(([kind, title, copy]) => (
+            <div key={kind}>
+              <span className="lesson-art">
+                <IsoBlock kind={kind} size={56} />
+              </span>
               <div>
                 <h3>{title}</h3>
                 <p>{copy}</p>
@@ -68,13 +72,11 @@ export function CampaignIntro() {
           ))}
         </div>
         <p className="small muted">
-          First playable chapter: brief → 10 users → 100 users.
-          <br />
-          Higher-scale missions are shown as the roadmap.
+          Six chapters take one API from 10 users to 1 million. Each one starts
+          with something that breaks.
         </p>
       </section>
       <section className="brief-panel">
-        <div className="section-label">YOUR INTERVIEW BRIEF</div>
         <h2>Before you draw a box.</h2>
         <p>
           The catalogue is a disposable prototype today. Product lookups are

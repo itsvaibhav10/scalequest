@@ -3,7 +3,7 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { MetricsStrip } from "./MetricsStrip";
 export function SimulationConsole() {
-  const { state, dispatch, runSimulation } = useGame();
+  const { state, stage, dispatch, runSimulation } = useGame();
   const result = state.lastResult;
   return (
     <section className="simulation-console">
@@ -81,17 +81,17 @@ export function SimulationConsole() {
           Run simulation
         </Button>
       </div>
-      {state.stageIndex === 2 && (
-        <div className="incident-banner">
+      {stage.incidents.map((incident) => (
+        <div className="incident-banner" key={incident.id}>
           <div>
-            <strong>Incident / API restart</strong>
-            <p>After the API comes back, can it still find the product?</p>
+            <strong>{incident.title}</strong>
+            <p>{incident.description}</p>
           </div>
-          <Button onClick={() => runSimulation(true)}>
-            Run restart incident
+          <Button onClick={() => runSimulation(incident.id)}>
+            {incident.button}
           </Button>
         </div>
-      )}
+      ))}
       <MetricsStrip result={result} />
       <details className="trace-panel">
         <summary>

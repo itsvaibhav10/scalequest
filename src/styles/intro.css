@@ -1,0 +1,161 @@
+.intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 450px;
+  gap: 56px;
+  align-items: start;
+  padding: 28px 40px 56px;
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+}
+.intro h1 {
+  font-weight: 800;
+  font-size: clamp(2.6rem, 1.6rem + 3vw, 4.4rem);
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+.intro-lead {
+  margin-top: 20px;
+  max-width: 54ch;
+  font-size: 1.15rem;
+  color: var(--ink-2);
+}
+.api-contract {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 26px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--paper);
+  border: 1.5px solid var(--line);
+  width: fit-content;
+  max-width: 100%;
+}
+.http-method {
+  padding: 2px 10px;
+  border-radius: 8px;
+  background: var(--mint-wash);
+  color: var(--mint-ink);
+  font-weight: 800;
+  font-size: 0.8125rem;
+}
+.api-contract code {
+  font-weight: 600;
+}
+.response-code {
+  margin: 12px 0 0;
+  padding: 16px 18px;
+  border-radius: var(--r-md);
+  background: var(--ink);
+  color: #f3ecff;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+.intro-lessons {
+  display: grid;
+  gap: 6px;
+  margin-top: 30px;
+}
+.intro-lessons > div {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.lesson-art {
+  display: block;
+  width: 64px;
+  height: 52px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.lesson-art svg {
+  margin-top: -8px;
+  margin-left: 4px;
+}
+.intro-lessons p {
+  font-size: 0.9rem;
+  color: var(--ink-2);
+}
+.intro-story > .small {
+  margin-top: 20px;
+}
+
+.brief-panel {
+  display: grid;
+  gap: 16px;
+  padding: 28px;
+  border-radius: 28px;
+  background: var(--paper);
+  border: 1.5px solid var(--line);
+  box-shadow: var(--lift-high);
+}
+.brief-panel h2 {
+  font-size: 1.7rem;
+  letter-spacing: -0.025em;
+}
+.brief-assumptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.brief-assumptions div {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--paper-2);
+}
+.brief-assumptions span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--ink-2);
+}
+.brief-assumptions strong {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.math-box {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+}
+.math-box code {
+  font-size: 0.8125rem;
+}
+.confirm-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+.confirm-label input {
+  margin-top: 4px;
+}
+.brief-panel .button--ghost {
+  justify-self: start;
+}
+
+@media (max-width: 1150px) {
+  .intro {
+    gap: 32px;
+    padding: 24px 24px 48px;
+    grid-template-columns: minmax(0, 1fr) 390px;
+  }
+}
+@media (max-width: 899px) {
+  .intro {
+    display: block;
+    padding: 20px 18px 40px;
+  }
+  .brief-panel {
+    margin-top: 32px;
+    padding: 20px;
+  }
+}

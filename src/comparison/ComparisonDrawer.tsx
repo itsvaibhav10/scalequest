@@ -1,10 +1,14 @@
+import { useState } from "react";
 import { useGame } from "../game/GameProvider";
 import { simulateArchitecture } from "../simulator/simulate";
 import { componentDefinitions } from "../content/components";
 import { Modal } from "../ui/Modal";
+import type { SimulationIncident } from "../domain/systemDesign";
 export function ComparisonDrawer({ onClose }: { onClose: () => void }) {
   const { state, stage } = useGame();
-  const incident = state.stageIndex === 2 ? "restart" : "none";
+  const [incident, setIncident] = useState<SimulationIncident>(
+    stage.incidents[0]?.id ?? "none",
+  );
   const designs = [
     ["Baseline", stage.baseline],
     ["Your design", state.architecture],
@@ -13,10 +17,27 @@ export function ComparisonDrawer({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Compare the trade-offs" onClose={onClose} wide>
       <p className="muted">
-        Same workload, same scenario:{" "}
-        {incident === "restart" ? "after API restart" : "normal traffic"}. The
-        reference is one valid design, not the only answer.
+        Same workload, same scenario. The reference is one valid design, not the
+        only answer.
       </p>
+      {stage.incidents.length > 0 && (
+        <label className="scenario-picker">
+          Scenario
+          <select
+            value={incident}
+            onChange={(e) => setIncident(e.target.value as SimulationIncident)}
+          >
+            <option value="none">Normal traffic</option>
+            {stage.incidents.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.title
+                  .replace("Incident / ", "")
+                  .replace(/^./, (c) => c.toUpperCase())}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <div className="comparison-grid">
         {designs.map(([name, graph]) => {
           const r = simulateArchitecture(graph, state.workload, incident);
@@ -24,7 +45,12 @@ export function ComparisonDrawer({ onClose }: { onClose: () => void }) {
             <section key={name}>
               <h3>{name}</h3>
               <p className="comparison-path">
-                {graph.nodes.map((n) => n.label).join(" → ")}
+                {graph.nodes
+                  .map(
+                    (n) =>
+                      `${n.label}${(n.count ?? 1) > 1 ? ` ×${n.count}` : ""}`,
+                  )
+                  .join(" → ")}
               </p>
               <dl>
                 <div>
@@ -38,6 +64,10 @@ export function ComparisonDrawer({ onClose }: { onClose: () => void }) {
                 <div>
                   <dt>Complexity</dt>
                   <dd>{r.complexity.value}</dd>
+                </div>
+                <div>
+                  <dt>Scenario success</dt>
+                  <dd>{r.availability.value.toFixed(2)}%</dd>
                 </div>
                 <div>
                   <dt>Errors</dt>
@@ -60,10 +90,7 @@ export function ComparisonDrawer({ onClose }: { onClose: () => void }) {
           );
         })}
       </div>
-      <p className="callout">
-        A database costs more and may add latency. At this stage, the reason to
-        add it is durable data—not throughput.
-      </p>
+      <p className="callout">{stage.comparisonNote}</p>
     </Modal>
   );
 }

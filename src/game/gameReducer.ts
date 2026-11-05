@@ -1,6 +1,7 @@
 import type {
   Architecture,
   ComponentKind,
+  ScenarioRuns,
   WorkloadInput,
   SimulationResult,
 } from "../domain/systemDesign";
@@ -23,6 +24,8 @@ export interface GameState {
   architecture: Architecture;
   workload: WorkloadInput;
   lastResult: SimulationResult | null;
+  /** Latest result of each scenario; cleared whenever the design or workload changes. */
+  runs: ScenarioRuns;
   selectedLearningKind: ComponentKind | null;
   scoreByStage: Record<string, number>;
   progressNotice: string | null;
@@ -43,6 +46,7 @@ export function initialState(): GameState {
     architecture: structuredClone(readApiStages[0].baseline),
     workload: { ...readApiStages[0].defaultWorkload },
     lastResult: null,
+    runs: {},
     selectedLearningKind: null,
     scoreByStage: {},
     progressNotice: null,
@@ -79,6 +83,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         architecture: action.architecture,
         lastResult: action.positionsOnly ? state.lastResult : null,
+        runs: action.positionsOnly ? state.runs : {},
         ...(!action.positionsOnly
           ? {
               answers: { diagnosis: "", tradeoff: "" },
@@ -95,6 +100,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         workload: action.workload,
         lastResult: null,
+        runs: {},
         answers: { diagnosis: "", tradeoff: "" },
         sliceComplete: false,
         completedStageIds: state.completedStageIds.filter(
@@ -107,6 +113,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         lastResult: action.result,
+        runs: { ...state.runs, [action.result.incident]: action.result },
         history: [
           ...state.history,
           `Simulation: ${action.result.valid ? "valid request path" : "needs attention"} · ${action.result.workload.peakRps.toFixed(2)} peak RPS.`,
@@ -123,12 +130,8 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, estimateAnswer: action.value };
     case "begin":
       return {
-        ...state,
-        stageIndex: 1,
-        architecture: structuredClone(readApiStages[1].baseline),
-        workload: { ...state.workload, activeUsers: 10 },
+        ...enterStage(state, 1),
         completedStageIds: ["requirements"],
-        lastResult: null,
         confirmedEstimate: {
           answer: state.estimateAnswer,
           activeUsers: state.workload.activeUsers,
@@ -148,33 +151,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         ...state.scoreByStage,
         [stage.id]: Math.max(state.scoreByStage[stage.id] ?? 0, action.score),
       };
-      if (state.stageIndex === 2)
-        return {
-          ...state,
-          completedStageIds,
-          scoreByStage,
-          sliceComplete: true,
-        };
-      return {
-        ...state,
-        stageIndex: 2,
-        completedStageIds,
-        scoreByStage,
-        workload: { ...state.workload, activeUsers: 100 },
-        lastResult: null,
-        answers: { diagnosis: "", tradeoff: "" },
-        selectedLearningKind: null,
-        history: [
-          ...state.history,
-          "New requirement: product data must survive an API restart.",
-        ].slice(-8),
-      };
+      const done = { ...state, completedStageIds, scoreByStage };
+      if (state.stageIndex === readApiStages.length - 1)
+        return { ...done, sliceComplete: true };
+      return advance(done);
     }
     case "reset-stage":
       return {
         ...state,
         architecture: structuredClone(readApiStages[state.stageIndex].baseline),
         lastResult: null,
+        runs: {},
         answers: { diagnosis: "", tradeoff: "" },
         sliceComplete: false,
         completedStageIds: state.completedStageIds.filter(
@@ -186,4 +173,39 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case "dismiss-progress-notice":
       return { ...state, progressNotice: null };
   }
+}
+
+/** Starts a stage: its baseline design, its workload and a clean slate. */
+function enterStage(state: GameState, index: number): GameState {
+  const stage = readApiStages[index];
+  return {
+    ...state,
+    stageIndex: index,
+    architecture: structuredClone(stage.baseline),
+    workload: {
+      ...state.workload,
+      ...stage.workloadOverrides,
+      activeUsers: stage.userCount,
+    },
+    lastResult: null,
+    runs: {},
+    answers: { diagnosis: "", tradeoff: "" },
+    selectedLearningKind: null,
+    sliceComplete: false,
+  };
+}
+
+/** Moves a finished game state on to the next chapter. */
+export function advance(state: GameState): GameState {
+  const next = enterStage(state, state.stageIndex + 1);
+  return {
+    ...next,
+    history: [
+      ...state.history,
+      `Chapter ${next.stageIndex}: ${readApiStages[next.stageIndex].brief}`.slice(
+        0,
+        480,
+      ),
+    ].slice(-8),
+  };
 }

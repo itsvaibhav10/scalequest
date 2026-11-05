@@ -2,7 +2,17 @@
 
 Learn system design by building a request path, changing its workload, observing failure, and defending your choices.
 
-ScaleQuest is a browser-based interview learning game for working developers. Its first playable chapter covers **requirements → 10 users → 100 users**. The rest of the 1K–1M journey is visible as a roadmap, not playable yet.
+ScaleQuest is a browser-based interview learning game for working developers. The campaign is one read API taken from 10 users to 1 million. Each chapter starts with something that breaks, and you earn the fix.
+
+| Chapter | Daily users | What breaks | What you learn |
+| --- | --- | --- | --- |
+| Brief | 10 | Nothing yet | Estimating peak requests per second |
+| 1 | 10 | Nothing | The simplest path, and what local data gives up |
+| 2 | 100 | A restart erases products | A database for durability |
+| 3 | 1K | The database fails far below its rating | An index on the lookup column |
+| 4 | 10K | One API server is both too small and a single point of failure | A load balancer and N+1 sizing |
+| 5 | 100K | Every read still reaches one database | A cache, or read replicas, and what each costs |
+| 6 | 1M | A bot spike and a server failure | A rate limiter and redundancy |
 
 ## Run locally
 
@@ -27,14 +37,13 @@ The production output is `dist/`. Any static host can serve it. No API key, acco
 ## What you can do
 
 1. Clarify the product-lookup contract and calculate peak requests per second.
-2. Add local data to a client/API architecture. Connect nodes by dragging handles or using the keyboard connection editor.
-3. Run traffic and inspect latency, throughput, errors, scenario success, cost and complexity.
-4. Increase daily users to expose saturation; reconnect or reset your design.
-5. Answer authored diagnosis/trade-off questions and earn an explainable category score.
-6. Unlock the restart mission. Observe memory loss, then introduce a database and rerun the incident.
-7. Compare baseline, current and reference architectures under identical assumptions.
-8. Inspect Why / How / What, including schema/pseudocode, trade-offs and when not to use each component.
-9. Refresh to resume progress; use the reset control to start again.
+2. Build on a canvas of isometric blocks. Connect them by dragging handles or with the keyboard list editor, set API and replica instance counts, and toggle the database index.
+3. Run traffic and inspect latency, throughput, errors, scenario success, cost and complexity. Each block shows its own load, and requests ride the roads between blocks.
+4. Run incidents where a chapter has them: API restart, server failure, bot traffic spike.
+5. Answer authored diagnosis and trade-off questions and earn an explainable category score.
+6. Compare baseline, current and reference architectures under identical assumptions. More than one design can pass; the cheaper one is not always the reference.
+7. Inspect Why / How / What, including schema, pseudocode, trade-offs and when not to use each component.
+8. Refresh to resume progress; use the reset control to start again.
 
 Editing is designed for desktop. On narrow screens the canvas is replaced by a readable notice, while teaching content and results remain available.
 
@@ -45,18 +54,23 @@ Editing is designed for desktop. On narrow screens the canvas is replaced by a r
 - [Implementation guide](docs/implementation-guide.md): what is actually built, where it lives, and why.
 - [Implementation decisions](docs/implementation-log.md): corrections made while translating the plan into code.
 - [Validation record](docs/manual-validation.md): checks performed and their results.
+- [PRODUCT.md](PRODUCT.md): who the product is for, its positioning and constraints.
+- [DESIGN.md](DESIGN.md): the visual system (isometric toybox): color, type, shape and rules.
 
-The implementation guide is the source of truth for current behavior. The design and plan describe additional future work and contain some original formulas superseded by the implementation decisions.
+The implementation guide, decisions log and validation record describe the original two-chapter build and have not been updated for chapters 3 to 6, the graph simulator or the redesign. This README and the code are current. The design and plan describe additional future work and contain some original formulas superseded by the implementation decisions.
 
 ## Educational model
 
-Values are **illustrative presets**, not cloud quotes or hardware benchmarks. For example, the API is assigned 500 RPS capacity and $40/month. That does not mean a real $40 server sustains this workload.
+Values are **illustrative presets**, not cloud quotes or hardware benchmarks. For example, one API server instance is assigned 500 RPS capacity and $40/month. That does not mean a real $40 server sustains this workload.
 
-- Workload derives from daily active users and daily requests, not registered users.
-- Latency uses a disclosed saturation heuristic, not measured latency samples.
-- “Scenario success” means successful requests in one modeled scenario, not annual uptime.
+- Workload derives from daily active users and daily requests, not registered users. Later chapters assume heavier use per visitor (500 lookups a day in chapters 3 to 5) and say so in their briefs.
+- Traffic is pushed through the architecture graph in order. A component serves at most its capacity and the rest is lost. Where a path splits, traffic is shared in proportion to capacity.
+- The p95 latency is the slowest route that carries at least 5% of requests, with each component slowed as it nears capacity. It is a disclosed heuristic, not measured latency.
+- A cache answers a fixed share of reads (85%) and passes the rest on. An unindexed database is rated far lower than an indexed one. A rate limiter rejects abusive traffic and also wrongly rejects 0.5% of real requests.
+- “Scenario success” means successful legitimate requests in one modeled scenario, not annual uptime.
 - Restart represents the period **after the API process recovers**. A separate database preserves rows; it does not keep a stopped API available.
-- This chapter simulates one synchronous path. Branching, replicas, queues, cache policies and multi-region behavior are future modules.
+- A server-failure incident removes one API instance. A spike adds three times the normal peak as abusive traffic.
+- Not modeled: queues, writes, cache invalidation, replication lag, multi-region behavior and failure of the load balancer itself.
 - Component costs exclude traffic fees, backups, taxes, engineering time and provider-specific infrastructure.
 - Scores evaluate authored choices and requirements. They do not evaluate free-form communication or predict interview outcomes.
 
@@ -69,7 +83,9 @@ src/simulator     Pure graph validation, calculations, incident behavior
 src/game          Reducer, context and progression commands
 src/persistence   Versioned storage validation and recovery
 src/scoring       Explicit learner evidence and score categories
-src/canvas        React Flow adapter, nodes and component palette
+src/canvas        React Flow adapter, isometric blocks, packet edges, palette, layout
+src/styles        Design tokens and the four stylesheets
+public/fonts      Self-hosted Bricolage Grotesque and Figtree (latin subset)
 src/campaign      Brief and playable workspace
 src/interview     Authored questions and feedback
 src/learning      Golden Circle explanations
@@ -78,12 +94,26 @@ src/comparison    Baseline/current/reference comparison
 src/ui            Buttons, icons and dialog
 ```
 
-Campaign content is separate from simulation rules. Adding a “Cache” label alone cannot create cache behavior; a future chapter must implement its routing, hit/miss model and failure modes.
+Campaign content is separate from simulation rules. Adding a component label alone cannot create its behavior; each kind needs a role in the simulator (`src/simulator`) and a definition in `src/content/components.ts`.
 
 No tests were created per project instructions. Typecheck, lint, production build, direct disposable runtime probes and browser interaction checks are used for this delivery.
 
 ## Privacy and hosting
 
-Progress is saved in this browser under `scalequest.progress.v1`. There is no analytics, auth or user-data upload. Google Fonts supplies optional typography; system fonts are the fallback. The app can be hosted as static files and does not provision infrastructure for each learner.
+Progress is saved in this browser under `scalequest.progress.v1`. There is no analytics, auth or user-data upload. Fonts are self-hosted, so no request leaves the page for typography. The app can be hosted as static files and does not provision infrastructure for each learner.
 
-No deployment has been performed. An open-source license has not been chosen yet.
+## Vercel deployment
+
+On 2026-09-09, the production build passed and its static `dist/` files were submitted to Vercel:
+
+- [Live production app](https://scalequest-iota.vercel.app)
+- [Deployment dashboard](https://vercel.com/vaibhavjain5625-7834s-projects/scalequest/9ej9YRBUt74fBFmHD9rM4unYMWD7)
+- Deployment ID: `dpl_9ej9YRBUt74fBFmHD9rM4unYMWD7`
+
+Verification completed in Brave on 2026-09-09: the Vercel dashboard reports **Ready** for this production deployment. The live production domain loads ScaleQuest; entering a workload estimate and accepting the brief successfully opens the 10-user mission, including its architecture canvas and learning panels. The earlier team-scoped deployment alias required Vercel login; the dashboard identifies the production domain above. Deployment protection was not changed.
+
+That deployment is the original two-chapter build. The later chapters and the redesign are not live until `dist/` is uploaded again.
+
+This was a manual static upload, not a Git-connected deployment; future commits do not automatically redeploy. No backend or per-learner infrastructure was provisioned.
+
+An open-source license has not been chosen yet.

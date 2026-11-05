@@ -13,7 +13,10 @@ export function Icon({
     | "close"
     | "reset"
     | "compare"
-    | "book";
+    | "book"
+    | "plus"
+    | "minus"
+    | "info";
   size?: number;
 }) {
   const paths: Record<string, React.ReactNode> = {
@@ -42,6 +45,29 @@ export function Icon({
         <path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0" />
       </>
     ),
+    "rate-limiter": (
+      <>
+        <path d="M12 3 4 6v6c0 4.5 3.2 7.6 8 9 4.8-1.4 8-4.5 8-9V6l-8-3Z" />
+        <path d="M9 12h6" />
+      </>
+    ),
+    "load-balancer": (
+      <>
+        <circle cx="5" cy="12" r="2" />
+        <circle cx="19" cy="5" r="2" />
+        <circle cx="19" cy="12" r="2" />
+        <circle cx="19" cy="19" r="2" />
+        <path d="M7 12h10M7 11l10-5M7 13l10 5" />
+      </>
+    ),
+    cache: <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" />,
+    "read-replica": (
+      <>
+        <ellipse cx="10" cy="6" rx="7" ry="2.5" />
+        <path d="M3 6v9c0 3 14 3 14 0V6" />
+        <path d="M20 9v9c0 2-3 3-6 3" />
+      </>
+    ),
     layers: (
       <>
         <path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5m-18 5 9 5 9-5" />
@@ -62,6 +88,14 @@ export function Icon({
       <>
         <rect x="3" y="4" width="7" height="16" rx="1" />
         <rect x="14" y="4" width="7" height="16" rx="1" />
+      </>
+    ),
+    plus: <path d="M12 5v14M5 12h14" />,
+    minus: <path d="M5 12h14" />,
+    info: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v5M12 8h.01" />
       </>
     ),
     book: <path d="M12 5C8 2 3 3 3 3v16s5-1 9 2c4-3 9-2 9-2V3s-5-1-9 2v16" />,

@@ -14,12 +14,12 @@ import {
   calculateStageScore,
   estimateCorrect,
 } from "../scoring/calculateStageScore";
-import type { CampaignStage } from "../domain/systemDesign";
+import type { CampaignStage, SimulationIncident } from "../domain/systemDesign";
 interface Value {
   state: GameState;
   stage: CampaignStage;
   dispatch: React.Dispatch<GameAction>;
-  runSimulation: (restart?: boolean) => void;
+  runSimulation: (incident?: SimulationIncident) => void;
   canCompleteStage: boolean;
   completeStage: () => void;
   begin: () => void;
@@ -37,17 +37,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const canCompleteStage =
     !!state.lastResult &&
     stage.objectives.every((o) =>
-      o.evaluate(state.architecture, state.lastResult!),
+      o.evaluate(state.architecture, state.lastResult!, state.runs),
     ) &&
     score.total === 100 &&
     !state.sliceComplete;
-  const runSimulation = (restart = false) =>
+  const runSimulation = (incident: SimulationIncident = "none") =>
     dispatch({
       type: "store-result",
       result: simulateArchitecture(
         state.architecture,
         state.workload,
-        restart ? "restart" : "none",
+        incident,
       ),
     });
   const completeStage = () => {
