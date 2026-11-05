@@ -104,16 +104,16 @@ Progress is saved in this browser under `scalequest.progress.v1`. There is no an
 
 ## Vercel deployment
 
-On 2026-09-09, the production build passed and its static `dist/` files were submitted to Vercel:
+Production is a manual static upload of `dist/`, not a Git-connected deployment, so commits do not redeploy automatically. No backend or per-learner infrastructure was provisioned. Deployment protection was not changed.
+
+Current production, deployed 2026-11-05 with the Vercel CLI (`vercel deploy dist --prod`):
 
 - [Live production app](https://scalequest-iota.vercel.app)
-- [Deployment dashboard](https://vercel.com/vaibhavjain5625-7834s-projects/scalequest/9ej9YRBUt74fBFmHD9rM4unYMWD7)
-- Deployment ID: `dpl_9ej9YRBUt74fBFmHD9rM4unYMWD7`
+- [Deployment dashboard](https://vercel.com/vaibhavjain5625-7834s-projects/scalequest/5RiwwfobDTSQHzCKdDYk6tCg53K2)
+- Deployment ID: `dpl_5RiwwfobDTSQHzCKdDYk6tCg53K2`
 
-Verification completed in Brave on 2026-09-09: the Vercel dashboard reports **Ready** for this production deployment. The live production domain loads ScaleQuest; entering a workload estimate and accepting the brief successfully opens the 10-user mission, including its architecture canvas and learning panels. The earlier team-scoped deployment alias required Vercel login; the dashboard identifies the production domain above. Deployment protection was not changed.
+This deployment is the six-chapter build with the toybox redesign (commit `1ad0ade`, docs after it). It does not include the later fix that stops the canvas hint overlapping the board border; that fix is committed and goes live on the next upload. Verified on the live domain: the asset hashes match the local build, the self-hosted font returns 200, the brief and chapter 1 open after entering an estimate, and the chapter 6 reference design gives 99.5% in the spike scenario and 99.36% with a server failure at $1,295, with every objective passing.
 
-That deployment is the original two-chapter build. The later chapters and the redesign are not live until `dist/` is uploaded again.
-
-This was a manual static upload, not a Git-connected deployment; future commits do not automatically redeploy. No backend or per-learner infrastructure was provisioned.
+The previous production deployment (2026-09-09, the original two-chapter build, `dpl_9ej9YRBUt74fBFmHD9rM4unYMWD7`) is still available as a rollback candidate in the Vercel dashboard.
 
 An open-source license has not been chosen yet.
