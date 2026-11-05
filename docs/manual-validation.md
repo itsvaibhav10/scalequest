@@ -1,3 +1,54 @@
+# Validation record — 2026-11-05 update
+
+Scope: graph simulator, chapters 3 to 6 and the isometric toybox redesign. No test files were committed; the scripts below were temporary and lived outside the repository.
+
+## Commands
+
+| Check | Observed result |
+| --- | --- |
+| npm run typecheck | Passed |
+| npm run lint | Passed |
+| npm run build | Passed; about 145.6 KB JavaScript gzip and 7.95 KB CSS gzip |
+| Impeccable design detector over changed UI | One advisory (an animation name), fixed; second run returned no findings |
+| Temporary engine script | 36 checks passed |
+| Temporary stage script | All passed |
+
+The engine script compared the new simulator with the committed original on chapters 1 and 2 (baseline and reference, with and without a restart) and on a saturated single path. Throughput, p95, errors, scenario success, cost and complexity were identical. It then checked the new scenarios and the validation rules:
+
+- 1K: unindexed database fails with 30.9% errors at 57.9 peak RPS; indexed passes at p95 62 ms.
+- 10K: one API gives 13.6% errors; load balancer with 3 API instances is healthy and survives a server failure; with 2 instances a failure leaves 86.4%.
+- 100K: no cache gives 82.7% errors; cache passes at $635 and 104.8 ms; 5 replicas pass at $985; 3 replicas leave 30.9% errors.
+- 1M: calm 99.5%; spike with limiter 99.5% with 34,722 RPS shed; spike without limiter 25.9%; server failure 99.36% with 24 instances and 95.04% with 23; cost $1,295; p95 97.2 ms.
+- Validation: several API servers without a load balancer, a replica without a primary, local data behind several servers, a dead-end load balancer, zero instances and a cycle are all rejected.
+
+The stage script plays every chapter as the interface would, running every incident the chapter offers. In each chapter the reference passes every objective and the baseline fails at least one.
+
+## Browser workflow
+
+Verified in Google Chrome against the Vite dev server at http://127.0.0.1:5173.
+
+- [x] Seeded chapter 4 progress is accepted by the persistence validator and opens on chapter 4.
+- [x] Added a load balancer, set the API to 3 instances, rewired with the keyboard list editor and ran a normal and a server-failure scenario. The page showed 578.7 RPS, $225, p95 64 ms and 100% in both, with all objectives passed.
+- [x] Answering both questions and continuing advanced to chapter 5 and saved progress.
+- [x] Chapter 5: API at 12 instances alone left 82.72% errors; adding a cache and rewiring gave 0% errors, $635 and p95 104.81 ms.
+- [x] Chapter 6 reference: spike and server-failure buttons produced the expected numbers; completing the campaign showed the completion summary and survived a reload.
+- [x] After the redesign, viewed the brief, chapter 5 baseline with per-block load pills, chapter 6 with seven blocks and branching data tier, the completion panel and the comparison dialog with its scenario picker.
+- [x] A 390px-wide iframe of the app had no horizontal overflow after fixing the header.
+- [ ] Reduced motion: the packet edges check the media query in code and skip packets, and the stylesheet disables animations, but this was not emulated in the browser.
+
+A first pass at 390px reported 51px of horizontal overflow from the header actions; it was fixed and rechecked.
+
+## Limits of this evidence
+
+- Chapters 1 to 3 were checked through the simulator and stage scripts, not played in the browser after the redesign.
+- Mobile was an iframe at 390px in desktop Chrome, not a device, and touch behavior was not tested.
+- The console message check started after page load, so it does not prove the absence of load-time warnings.
+- Contrast was reasoned from the palette (ink on ground above 4.5:1) and not measured with a tool.
+- Hot reload briefly detached the page during one script run; a fresh reload was fine.
+- The deployed site was not part of this validation. See the README for deployment status.
+
+---
+
 # Validation record — 2026-09-09
 
 Scope: first playable chapter, stages 0–2. No automated test files were created.

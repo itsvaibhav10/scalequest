@@ -1,8 +1,10 @@
 # What we built, and how to understand it
 
+Current as of 2026-11-05. The campaign has six playable chapters, a graph-based simulator and the isometric toybox interface. Earlier notes about the original two-chapter build are kept in [implementation-log.md](implementation-log.md).
+
 ## The learning journey
 
-This delivery is a small complete chapter. It starts with an ordinary catalogue lookup:
+The campaign starts with an ordinary catalogue lookup:
 
 ```http
 GET /api/products/:id
@@ -15,13 +17,20 @@ Average RPS = 10 × 100 / 86,400 = 0.01157
 Peak RPS = 0.01157 × 10 = 0.11574
 ```
 
-This is why user count alone cannot tell you whether Redis or more servers are needed. The first useful action is to translate product activity into demand.
+User count alone cannot tell you whether Redis or more servers are needed. The first useful action is to translate product activity into demand. Every chapter after that starts with something that breaks, and the learner earns the fix.
 
-The first canvas starts with Client → API. You add Local data and connect it. That gives the browser a complete request path to model. A disconnected graph produces a visible validation message rather than a made-up result.
+| Chapter | Daily users | Lookups per user per day | Peak RPS | Budget | The failure | The fix |
+| --- | ---: | ---: | ---: | ---: | --- | --- |
+| 1 | 10 | 100 | 0.12 | $150 | None; the simplest path is right | Client → API → local data |
+| 2 | 100 | 100 | 1.16 | $150 | A restart erases products | A relational database |
+| 3 | 1K | 500 | 57.9 | $250 | An unindexed database is rated about 40 RPS and fails with 30.9% errors | Turn on the index |
+| 4 | 10K | 500 | 578.7 | $400 | One API server is rated 500 RPS (13.6% errors), and losing it is a total outage | A load balancer and 3 API instances (survives losing one) |
+| 5 | 100K | 500 | 5,787 | $1,000 | Scaling the API only moves the bottleneck: 82.7% errors at the database | A cache ($635), or 5 replicas ($985) |
+| 6 | 1M | 100 | 11,574 | $1,500 | A bot spike and a server failure | A rate limiter, 24 API instances, cache and 2 replicas ($1,295) |
 
-In the second mission there are 100 daily users, but throughput is still modest: 1.1574 peak RPS. The reason to add a database is a **new durability requirement**. After an API restart, the old in-memory catalogue is gone. An external database retains committed product rows.
+Chapters 3 to 6 override the learner's workload with authored assumptions when they start. Each brief says so. The learner can still change daily users, lookups and the peak multiplier in the traffic console.
 
-This is the Golden Circle in practice:
+This is the Golden Circle in practice, using chapter 2 as the example:
 
 - **Why:** preserve data when the API process restarts.
 - **How:** store data in a separately managed durable system.
@@ -31,19 +40,24 @@ This is the Golden Circle in practice:
 
 ## What each UI region does
 
-| Region               | Implementation                  | Purpose                                                               |
-| -------------------- | ------------------------------- | --------------------------------------------------------------------- |
-| Campaign progression | app/App.tsx                     | Shows playable stages and future milestones honestly                  |
-| Brief                | campaign/CampaignIntro.tsx      | Collects assumptions and checks the learner's RPS estimate            |
-| Component palette    | canvas/ComponentPalette.tsx     | Adds stage-allowed nodes; explains locked components                  |
-| Graph editor         | canvas/ArchitectureCanvas.tsx   | Moves/removes nodes, connects/deletes edges, offers keyboard fallback |
-| Interview guide      | interview/InterviewerPanel.tsx  | Presents diagnosis and trade-off choices                              |
-| Golden Circle        | learning/GoldenCirclePanel.tsx  | Explains internal behavior, schema/pseudocode and limitations         |
-| Traffic/results      | metrics/                        | Runs deterministic simulations and exposes the calculation trace      |
-| Comparison           | comparison/ComparisonDrawer.tsx | Uses one workload and incident for all three designs                  |
-| Completion           | campaign/GameWorkspace.tsx      | Gives an interview summary and makes the next scope visible           |
+| Region | Implementation | Purpose |
+| --- | --- | --- |
+| Level map | app/App.tsx | One isometric tile per chapter; done, active and locked states |
+| Brief | campaign/CampaignIntro.tsx | Collects assumptions and checks the learner's RPS estimate |
+| Toy box (palette) | canvas/ComponentPalette.tsx | Adds stage-allowed blocks; shows when locked blocks unlock |
+| Board | canvas/ArchitectureCanvas.tsx | Moves and removes blocks, connects and deletes roads, offers a keyboard list editor |
+| Blocks | canvas/SystemNode.tsx, canvas/IsoBlock.tsx | One drawn silhouette per component, instance stepper, index toggle, load pill |
+| Roads and packets | canvas/PacketEdge.tsx | Dotted edges; packets move after a run and slow down when the target is overloaded |
+| Layout | canvas/layout.ts | Re-flows blocks into request-layer columns whenever one is added |
+| Interview guide | interview/InterviewerPanel.tsx | Presents the stage's diagnosis and trade-off questions |
+| Why panel | learning/GoldenCirclePanel.tsx | Explains internal behavior, schema, pseudocode and limitations |
+| Traffic and results | metrics/ | Runs simulations, one button per incident, and exposes the calculation trace |
+| Comparison | comparison/ComparisonDrawer.tsx | Same workload for baseline, current and reference, with a scenario picker |
+| Completion | campaign/GameWorkspace.tsx | Interview summary after the last chapter |
 
-The generated visual reference guided the dark palette, diagram layout and periwinkle accent. Generated references are not product code: the real UI is accessible HTML and React Flow nodes. The reference image's invented AI/avatar elements were omitted because the approved product has no AI or account.
+Stage content (mission copy, questions, incidents, unlocks, objectives, baseline and reference designs) is data in `content/readApiCampaign.ts`. The reducer, scoring, palette, console and persistence read it; none of them hard-code a chapter.
+
+The visual system is described in [DESIGN.md](../DESIGN.md) and the product record in [PRODUCT.md](../PRODUCT.md).
 
 ## The data flow
 
@@ -56,78 +70,100 @@ Graph + workload + selected incident
               ↓
 Pure simulateArchitecture()
               ↓
-Validation + metrics + causal trace
+Validation + metrics + per-block load + causal trace
               ↓
-Objectives + explicit answers → score → progression
+Objectives (judged per scenario) + explicit answers → score → progression
 ```
 
-React does not live inside the simulator. A result can be reproduced from the same serialized inputs. React Flow positions do not affect performance calculations.
+React does not live inside the simulator. A result can be reproduced from the same serialized inputs. React Flow positions do not affect calculations.
 
-Architecture edits and workload edits invalidate the last run. This prevents a learner from passing a new design using the result of an older one. Moving nodes preserves the result because the system's meaning has not changed.
+Architecture and workload edits invalidate every stored run. This prevents a learner from passing a new design using the result of an older one. Moving blocks preserves the results because the system's meaning has not changed.
+
+Objectives are evaluated against the latest run of each scenario (`runs`), not only the most recent one. Chapters with incidents therefore require the learner to run each incident: for example chapter 6 needs a normal run, a spike run and a server-failure run.
 
 ## The simulation, without magic
 
-The component catalogue supplies capacities, illustrative latency, cost and complexity. The graph validator checks identifiers, compatible edges, missing nodes, disconnected components and ambiguous paths. This chapter accepts one complete Client → API → Data path.
+### Components
 
-For a valid path:
+Each kind has a role: source, gate (rate limiter), distributor (load balancer), compute (API), cache, or data. Definitions in `content/components.ts` supply capacity per instance, illustrative latency, cost, complexity and allowed connections. API servers and read replicas are scalable: a node carries an instance count that multiplies capacity, cost and complexity. A database has an `indexed` option; a missing value means indexed, so older saves keep their behavior.
+
+| Component | Capacity per instance | Latency | Cost per instance |
+| --- | ---: | ---: | ---: |
+| Rate limiter | 50,000 RPS | 1 ms | $20 |
+| Load balancer | 20,000 RPS | 2 ms | $25 |
+| API server | 500 RPS | 30 ms | $40 |
+| Cache | 20,000 RPS (85% hit ratio) | 1 ms | $50 |
+| Local data | 500 RPS | 2 ms | $0 |
+| Relational database, indexed | 1,000 RPS | 12 ms | $80 |
+| Relational database, unindexed | 40 RPS | 150 ms | $80 |
+| Read replica | 1,000 RPS | 12 ms | $80 |
+
+### Validation
+
+The validator checks identifiers, compatible edges in the allowed direction, missing nodes, cycles, and that every block sits on a route from the client to data. It adds rules for the new components: several API servers need a load balancer, a replica needs a primary database, local data cannot be shared by more than one API instance, and instance counts must be whole numbers from 1 to 40. Requests flow client → rate limiter → load balancer → API → cache → data.
+
+### Traffic flow
+
+Traffic is pushed through the graph in topological order. For each node:
 
 ```text
-Capacity = minimum processing capacity along the path
-Throughput = min(offered peak RPS, capacity)
-Errors = max(0, offered - capacity) / offered × 100
-Scenario success = 100 - errors
-Base latency = sum of node latency presets
-Saturation = offered / capacity
-
-Latency multiplier =
-  1                                when saturation ≤ 0.7
-  1 + (saturation - 0.7) × 4        otherwise
-
-p95 estimate = base latency × multiplier
-Monthly component cost = sum of instantiated component costs
-Complexity = component points + 0.25 per edge
+served = min(offered, capacity)
+Where a path splits, traffic is shared in proportion to each target's capacity.
+Cache: hit ratio × served is answered; the rest goes on.
+Rate limiter: rejects abusive traffic, and rejects 0.5% of legitimate traffic.
+Scenario success = legitimate requests that finish ÷ legitimate peak
+Errors = 100 − scenario success
 ```
 
-Zero offered requests is handled explicitly without division by zero. Invalid graphs return validation issues and no successful throughput. Latency shown for an invalid graph is a zero sentinel with an explanation, not a claim of instant response.
+The p95 estimate lists every route with its probability and latency, then takes the slowest route that carries at least 5% of requests. Each node's latency is multiplied by `1` while its load is at most 70% of capacity, and by `1 + (load − 0.7) × 4` above that.
 
-The preset capacities are not based on real benchmarks. The latency multiplier is a simple learning heuristic. In particular, it is not a queueing-theory model, real p95 calculation, or guarantee of production performance.
+```text
+Monthly cost = sum of cost × instance count
+Complexity = component points + 0.25 per extra instance + 0.25 per edge
+```
 
-At 50,000 users with the default daily request and peak assumptions, peak demand is approximately 578.70 RPS. A 500-RPS API limits successful throughput and the model returns 13.6% errors. Meeting the 200 ms latency target alone is not enough: the scenario-success objective must also pass.
+Zero offered requests is handled without division by zero. Invalid graphs return validation issues and no successful throughput. Latency shown for an invalid graph is a zero sentinel with an explanation, not a claim of instant response. For a single path with no scaling the numbers are identical to the original simulator; this was checked against the committed original (see [manual-validation.md](manual-validation.md)).
 
-## Restart is a separate failure mode
+The preset capacities are not based on real benchmarks. The latency multiplier is a learning heuristic, not a queueing-theory model, a real p95 calculation or a guarantee of production performance.
 
-Calling `simulateArchitecture(graph, workload, 'restart')` models lookups after API recovery:
+## Incidents are separate scenarios
 
-- Local data path: rows disappeared; throughput is zero and errors are 100%.
-- Database path: committed data remains; normal workload calculations apply.
+`simulateArchitecture(graph, workload, incident)` takes one of four incidents:
 
-This explains durability only. It does not model the duration of the outage, replica failover, database failure, recovery point objectives or recovery time objectives.
+- `none`: normal peak traffic.
+- `restart`: lookups after API recovery. Local data path: rows disappeared, throughput is zero and errors are 100%. Database path: committed data remains and normal calculations apply.
+- `node-failure`: one API instance is lost. With one instance this is a total outage; with N instances the capacity is N−1.
+- `spike`: abusive traffic adds three times the legitimate peak. Without a rate limiter it competes for the same capacity (chapter 6 reference: 25.9% of real users served). With one, the abusive traffic is rejected (34,722 RPS shed) and real users are served at 99.5%.
+
+This does not model outage duration, replica failover, database failure, load balancer failure, replication lag, cache invalidation, recovery point objectives or recovery time objectives.
 
 ## Scoring
 
-| Evidence                              | Maximum |
-| ------------------------------------- | ------: |
-| Confirmed requirements                |      20 |
-| Initial peak-RPS estimate             |      15 |
-| Correct diagnosis choice              |      20 |
-| Valid architecture meeting objectives |      20 |
-| Correct trade-off choice              |      15 |
-| Focused design within budget          |      10 |
+| Evidence | Maximum |
+| --- | ---: |
+| Confirmed requirements | 20 |
+| Initial peak-RPS estimate | 15 |
+| Correct diagnosis choice | 20 |
+| Valid architecture meeting objectives | 20 |
+| Correct trade-off choice | 15 |
+| Within budget, with no more blocks than the reference | 10 |
 
 The initial estimate is captured as evidence when leaving the brief. Later traffic experiments do not erase that learning achievement. Every score category exposes its rule. Wrong choices can be revised without a retry penalty.
 
-This is a guided chapter with a small design vocabulary; it does not pretend to evaluate all possible interview architectures. Free-form speech/writing evaluation is out of scope.
+This is a guided campaign with a small design vocabulary; it does not pretend to evaluate all possible interview architectures. Free-form speech or writing evaluation is out of scope.
 
 ## Saving and recovery
 
-The reducer state is saved locally. Transient simulation results are intentionally cleared on refresh, so the learner reruns the current architecture. Chapter achievements and explicit answers are retained.
+The reducer state is saved locally. Transient simulation results (`lastResult` and `runs`) are intentionally cleared on refresh, so the learner reruns the current architecture. Chapter achievements and explicit answers are retained.
 
-The loader validates schema version, stage progression, component kinds, identifiers, graph shapes, numeric ranges and learner evidence. If saved data is incompatible, it attempts to preserve the raw data under `scalequest.progress.recovery` before starting fresh. If the recovery backup cannot be written, saving is suppressed to avoid overwriting that original. Storage errors produce a notice rather than crashing the game.
+The loader validates schema version, stage progression against the campaign's stage list, which component kinds are unlocked, identifiers, graph shapes, optional instance counts and index flags, numeric ranges and learner evidence. A save that finished a chapter before later chapters existed is advanced to the next chapter on load. If saved data is incompatible, it attempts to preserve the raw data under `scalequest.progress.recovery` before starting fresh. If the recovery backup cannot be written, saving is suppressed to avoid overwriting that original. Storage errors produce a notice rather than crashing the game.
 
 There is no account sync. Progress belongs to this browser and origin; localhost ports, preview ports and a deployed domain have separate storage.
 
 ## What's intentionally next
 
-The rest of the approved campaign still needs implementation: indexes, connection pooling, load balancing, caches, replicas, rate limits, observability and resilience. A future sandbox should unlock after the full campaign rather than pretending the current three-node model can evaluate arbitrary architectures.
-
-The current application establishes the UI, pure simulator boundary, authored explanations and progression mechanism needed for those chapters. Flash-sale inventory requires a separate write/consistency model rather than adding a queue icon to this read-path model.
+- Observability, queues and write paths. Flash-sale inventory needs a separate write and consistency model rather than a queue icon on this read-path model.
+- Google sign-in and cloud progress: specified in `docs/superpowers/specs/2026-09-12-auth-cloud-progress-design.md`, not built.
+- Other problem domains beyond the read API, and a sandbox that unlocks after the campaign.
+- A Hinglish explanation toggle is recorded as undecided in `PRODUCT.md`.
+- Chapter 6 puts seven blocks on the board; at narrow desktop widths the zoom drops and small labels are hard to read.

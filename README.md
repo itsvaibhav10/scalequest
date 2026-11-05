@@ -57,7 +57,7 @@ Editing is designed for desktop. On narrow screens the canvas is replaced by a r
 - [PRODUCT.md](PRODUCT.md): who the product is for, its positioning and constraints.
 - [DESIGN.md](DESIGN.md): the visual system (isometric toybox): color, type, shape and rules.
 
-The implementation guide, decisions log and validation record describe the original two-chapter build and have not been updated for chapters 3 to 6, the graph simulator or the redesign. This README and the code are current. The design and plan describe additional future work and contain some original formulas superseded by the implementation decisions.
+The implementation guide is the source of truth for current behavior. The decisions log and validation record keep the original delivery and add a 2026-11-05 update for chapters 3 to 6, the graph simulator and the redesign. The design and plan describe additional future work and contain some original formulas superseded by the implementation decisions.
 
 ## Educational model
 

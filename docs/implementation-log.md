@@ -38,3 +38,32 @@ Working branch: vaibhav/scalequest-playable. The dedicated clean project checkou
 | 8 — integration | Playable chapter, responsive fallback, documentation and verified static build |
 
 Presentation composition was kept focused without empty AppShell/Panel abstractions. CSS is centralized; pure simulator files remain independent of React. Tasks were consolidated into one reviewed local feature commit rather than eight incidental implementation commits.
+
+## Update, 2026-11-05: graph simulator, chapters 3 to 6, toybox redesign
+
+Scope approved with the user: full read-API campaign plus a redesign. Out of scope: Google sign-in and cloud progress, backend or AI, other problem domains.
+
+### Decisions
+
+- The single-path simulator was replaced by a topological traffic-flow model. For one path with no scaling the output is identical to the original; this was verified against the committed original before building on it.
+- Scaling is an instance count on a node, not many nodes. A canvas of 24 API blocks is unusable; one block with a count, plus stacked art as a hint, keeps the board readable.
+- Authored per-chapter workloads. Strict proportional growth would need 10 times the servers per chapter and break the canvas. Each brief states its assumption.
+- Incidents are separate scenarios, and objectives read the latest run of each (`runs`) rather than a single latest result.
+- Stage content moved into data (mission copy, questions, incidents, unlocks, objectives). The reducer, scoring, palette, console and persistence no longer hard-code chapters.
+- An old save that completed chapter 2 is advanced on load instead of being left on a completion screen.
+- Visual direction: three directions were shown and the user picked the isometric toybox. Fonts are self-hosted instead of loaded from Google Fonts. Product and design records were added as `PRODUCT.md` and `DESIGN.md`.
+
+### Corrections found while verifying
+
+- Three read replicas are not enough at 100K: the data tier needs about six units of capacity. Five replicas pass at $985, so the cache ($635) is the cheaper reference.
+- A 1% false-positive rate on the rate limiter put the best-case scenario success at exactly 99.00%, on the objective's knife edge. It is now 0.5%.
+- A newly added block was placed on top of an existing one. Adding a block now re-flows all blocks by request layer.
+- The keyboard list editor could not remove a connection. Each outgoing connection now has a disconnect button.
+- The simulator trace joined parallel data blocks with an arrow, which implied they were serial. It now lists components in request order.
+- Packets rendered at the canvas origin until their start delay passed; they are now hidden until they begin.
+- The level-map connector ran through the labels, a flex selector hid the guide avatar, and the header overflowed at 390px. All fixed.
+
+### Not done
+
+- `docs/manual-validation.md` records original and current checks. Chapters 1 to 3 were checked through the simulator and stage scripts but not played through in the browser after the redesign.
+- Mobile was checked in a 390px iframe, not on a device.
